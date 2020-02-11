@@ -109,7 +109,7 @@ file_coverage <- function(
 
   withr::with_options(c("keep.parse.data.pkgs" = TRUE), {
     lapply(source_files,
-      sys.source, keep.source = TRUE, envir = env)
+               sys.source, keep.source = TRUE, envir = env)
   })
 
   trace_environment(env)
@@ -123,13 +123,28 @@ file_coverage <- function(
       sys.source, keep.source = TRUE, envir = env)
   )
 
-  coverage <- structure(as.list(.counters), class = "coverage")
+  ## branches <- as.list(.branches)
+  ## class(branches) <- "branch_coverage"
+  ## coverage <- structure(
+  ##   as.list(.counters),
+  ##   class = "coverage",
+  ##   branches = branches
+  ## )
+
+  coverage <- structure(
+    as.list(.counters),
+    class = "coverage",
+    branches = as.list(.branches)
+  )
+
 
   exclude(coverage,
     line_exclusions = line_exclusions,
     function_exclusions = function_exclusions,
     path = NULL)
 }
+
+
 
 #' Calculate coverage of code directly
 #'

@@ -1,0 +1,113 @@
+diff --git a/R/covr.R b/R/covr.R
+index 2ffa3f8..a2f1b15 100644
+--- a/R/covr.R
++++ b/R/covr.R
+@@ -123,7 +123,7 @@ file_coverage <- function(
+       sys.source, keep.source = TRUE, envir = env)
+   )
+ 
+-  coverage <- structure(as.list(.counters), class = "coverage")
++  coverage <- structure(as.list(.counters), class = "coverage", branches=as.list(.branches))
+ 
+   exclude(coverage,
+     line_exclusions = line_exclusions,
+diff --git a/R/parse_data.R b/R/parse_data.R
+index 612200e..b88527c 100644
+--- a/R/parse_data.R
++++ b/R/parse_data.R
+@@ -30,12 +30,12 @@ impute_srcref <- function(x, parent_ref) {
+     line_offset <- 0
+   }
+ 
+-  make_srcref <- function(from, to = from) {
++  make_srcref <- function(from, to = from, branch=FALSE) {
+     if (length(from) == 0) {
+       return(NULL)
+     }
+ 
+-    srcref(
++    ref <- srcref(
+       attr(parent_ref, "srcfile"),
+       c(pd_child$line1[from] - line_offset,
+         pd_child$col1[from],
+@@ -47,6 +47,12 @@ impute_srcref <- function(x, parent_ref) {
+         pd_child$line2[to]
+       )
+     )
++
++    if (branch) {
++      attr(ref, "branch") <- TRUE
++    }
++
++    ref
+   }
+ 
+   switch(
+@@ -55,8 +61,8 @@ impute_srcref <- function(x, parent_ref) {
+       src_ref <- list(
+         NULL,
+         make_srcref(3),
+-        make_srcref(5),
+-        make_srcref(7)
++        make_srcref(5, branch=TRUE),
++        make_srcref(7, branch=TRUE)
+       )
+       # the fourth component isn't used for an "if" without "else"
+       src_ref[seq_along(x)]
+diff --git a/R/summary_functions.R b/R/summary_functions.R
+index 9439b2a..b82c509 100644
+--- a/R/summary_functions.R
++++ b/R/summary_functions.R
+@@ -160,6 +160,9 @@ print.coverage <- function(x, group = c("filename", "functions"), by = "line", .
+     return(invisible())
+   }
+ 
++  ## add the branch coverage info
++  ## go over the list of all traced srcref and check if which branches were covered
++
+   percents <- tapply(df$value, df[[group]], FUN = function(x) (sum(x > 0) / length(x)) * 100)
+ 
+   overall_percentage <- percent_coverage(df, by = by)
+diff --git a/R/trace_calls.R b/R/trace_calls.R
+index 1dcb93d..1c66387 100644
+--- a/R/trace_calls.R
++++ b/R/trace_calls.R
+@@ -43,6 +43,10 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
+   }
+   else if (is.call(x)) {
+     src_ref <- attr(x, "srcref") %||% impute_srcref(x, parent_ref)
++    for (r in src_ref) {
++      if (isTRUE(attr(r, "branch"))) new_branch(r, parent_functions)
++      ## TODO shall we also clear the flag?
++    }
+     if ((identical(x[[1]], as.name("<-")) || identical(x[[1]], as.name("="))) && # nolint
+       (is.call(x[[3]]) && identical(x[[3]][[1]], as.name("function")))) {
+       parent_functions <- c(parent_functions, as.character(x[[2]]))
+@@ -101,6 +105,19 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
+ }
+ 
+ .counters <- new.env(parent = emptyenv())
++.branches <- new.env(parent = emptyenv())
++
++#' initialize a new branch
++#'
++#' @param src_ref a [base::srcref()]
++#' @param parent_functions the functions that this srcref is contained in.
++#' @keywords internal
++new_branch <- function(src_ref, parent_functions) {
++  key <- key(src_ref)
++  .branches[[key]]$srcref <- src_ref
++  .branches[[key]]$functions <- parent_functions
++  key
++}
+ 
+ #' initialize a new counter
+ #'
+@@ -128,6 +145,7 @@ count <- function(key) {
+ #' @keywords internal
+ clear_counters <- function() {
+   rm(envir = .counters, list = ls(envir = .counters))
++  rm(envir = .branches, list = ls(envir = .branches))
+ }
+ 
+ #' Generate a key for a  call
