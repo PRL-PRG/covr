@@ -30,12 +30,12 @@ impute_srcref <- function(x, parent_ref) {
     line_offset <- 0
   }
 
-  make_srcref <- function(from, to = from) {
+  make_srcref <- function(from, to = from, branch=FALSE) {
     if (length(from) == 0) {
       return(NULL)
     }
 
-    srcref(
+    ref <- srcref(
       attr(parent_ref, "srcfile"),
       c(pd_child$line1[from] - line_offset,
         pd_child$col1[from],
@@ -47,6 +47,12 @@ impute_srcref <- function(x, parent_ref) {
         pd_child$line2[to]
       )
     )
+
+    if (branch) {
+      attr(ref, "branch") <- TRUE
+    }
+
+    ref
   }
 
   switch(
@@ -55,8 +61,8 @@ impute_srcref <- function(x, parent_ref) {
       src_ref <- list(
         NULL,
         make_srcref(3),
-        make_srcref(5),
-        make_srcref(7)
+        make_srcref(5, branch=TRUE),
+        make_srcref(7, branch=TRUE)
       )
       # the fourth component isn't used for an "if" without "else"
       src_ref[seq_along(x)]
