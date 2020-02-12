@@ -89,8 +89,6 @@ tally_coverage <- function(x, by = c("line", "expression")) {
          )
 }
 
-
-
 #' Provide locations of zero coverage
 #'
 #' When examining the test coverage of a package, it is useful to know if there are
@@ -135,39 +133,21 @@ zero_coverage <- function(x, ...) {
   }
 }
 
+#' Checks whether a branch contains an expression
+#' s1: a srcref of a branch
+#' s2: a srcref of an expression
+srcref_contains <- function (br_srcref, exp_srcref) {
+  s1 <- as.integer(br_srcref)
+  s2 <- as.integer(exp_srcref)
 
+  br_fst_ln <- s1[[1L]]
+  br_fst_col <- s1[[5L]]
 
+  exp_fst_ln <- s2[[1L]]
+  exp_fst_col <- s2[[5L]]
 
-#' Checks whether s1 contains s2
-#' s1: a srcref from branch_srcrefs
-#' s2: a srcref from covered_exp
-srcref_contains <- function (s1, s2) {
-    fst_ln1 <- s1[[1L]]
-    lst_ln1 <- s1[[3L]]
-    fst_col1 <- s1[[5L]]
-    lst_col1 <- s1[[6L]]
-
-    fst_ln2 <- s2[[1L]]
-    lst_ln2 <- s2[[3L]]
-    fst_col2 <- s2[[5L]]
-    lst_col2 <- s2[[6L]]
-
-    if (fst_ln1 < fst_ln2 & lst_ln1 > lst_ln2) {
-        TRUE
-    } else if (fst_ln1 == fst_ln2 & lst_ln1 == lst_ln2) {
-        (fst_col1 <= fst_col2 & lst_col1 >= lst_col2)
-    } else if (fst_ln1 == fst_ln2 && lst_ln1 > lst_ln2) {
-        (fst_col1 <= fst_col2)
-    } else if (fst_ln1 < fst_ln2 & lst_ln1 == lst_ln2) {
-        (lst_col1 >= lst_col2)
-    } else {
-        FALSE
-    }
+  (br_fst_ln < exp_fst_ln || br_fst_ln == exp_fst_ln & br_fst_col <= exp_fst_col)
 }
-
-
-
-
 
 #' Tally branch coverage
 #'
@@ -175,40 +155,28 @@ srcref_contains <- function (s1, s2) {
 #' @return a `data.frame` of branch coverage 
 #' @exports
 tally_branch_coverage <- function (x) {
-    brs <- attr(x, "branches")
+  brs <- attr(x, "branches")
 
-    covered_exp <- Filter(function(x) x$value > 0, x)
-    class(covered_exp) <- "list"           ##hacky: remove it later
+  covered_exp <- Filter(function(x) x$value > 0, x)
 
-    for(exp in covered_exp) {
-        for (i in seq_along(brs)) {
-            sameFile <- (getSrcFilename(exp$srcref) == getSrcFilename(brs[[i]]$srcref))
-            if (!isTRUE(brs[[i]]$value) & sameFile) {
-                covered_br <- srcref_contains(unclass(brs[[i]]$srcref), unclass(exp$srcref))
-                brs[[i]]$value <- covered_br
-            }
-        }
+  for(exp in covered_exp) {
+    for (i in seq_along(brs)) {
+      sameFile <- (getSrcFilename(exp$srcref) == getSrcFilename(brs[[i]]$srcref))
+      if (!isTRUE(brs[[i]]$value) & sameFile) {
+        covered_br <- srcref_contains(brs[[i]]$srcref, exp$srcref)
+        brs[[i]]$value <- covered_br
+      }
     }
+  }
 
-    if(length(brs) != 0) { 
-        df_br <- brs
-        class(df_br) <- "coverage"
-        as.data.frame(df_br)
-    } else {
-        as.data.frame(brs)  ## no branch -> empty data.frame
-    }
-
-
+  if(length(brs) != 0) { 
+    df_br <- brs
+    class(df_br) <- "coverage"
+    as.data.frame(df_br)
+  } else {
+    as.data.frame(brs)
+  }
 }
-
-
-## srcref : List[refs]
-## objlist : List[records]
-## filteredobjlist =filter ( objlist , x => srcref contains x)
-## def filter(l : List[A], p : A => Bool): List[A] = l match {
-##     case Nil => Nil
-##     case h::tl => if(p(h)) h :: filter (tl, p) else filter (tl, p)
-## }
 
 #' Print a coverage object
 #'
@@ -218,8 +186,7 @@ tally_branch_coverage <- function (x) {
 #' @param ... additional arguments ignored
 #' @return The coverage object (invisibly).
 #' @export
-print.coverage <- function(x, group = c("filename", "functions"), by = "line", ...) {
-
+print.coverage <- function(x, group = c("filename", "functions"), by = "line", include_branches = FALSE, ...) {
   if (length(x) == 0) {
     return()
   }
@@ -231,7 +198,7 @@ print.coverage <- function(x, group = c("filename", "functions"), by = "line", .
     type <- NULL
   }
 
-    df <- tally_coverage(x, by = by)
+  df <- tally_coverage(x, by = by)
 
   if (!NROW(df)) {
     return(invisible())
@@ -254,6 +221,10 @@ print.coverage <- function(x, group = c("filename", "functions"), by = "line", .
       format_percentage(by_coverage[i]))
   }
 
+  if (isTRUE(include_branches)) {
+    print_branch_coverage(x, group=group)
+  }
+
   invisible(x)
 }
 
@@ -269,41 +240,43 @@ print.coverages <- function(x, ...) {
   invisible(x)
 }
 
-
-
 #' Print the branch coverage of a coverage object
 #'
 #' @param x the coverage object to be printed
-#' @param group whether to group coverage by filename or function
+#' @param group whether to group coverage by filename or functions
 #' @param ... additional arguments ignored
 #' @return The coverage object (invisibly).
 #' @export
-print.branch_coverage <- function(x, group = c("filename", "functions")) {
+print_branch_coverage <- function(x, group = c("filename", "functions")) {
     stopifnot(inherits(x, "coverage"))
 
+    if (length(x) == 0) {
+      return()
+    }
+    group <- match.arg(group)
+
     df_br <- tally_branch_coverage(x)
-    ## empty data.frame means no branch was found
+
     if(dim(df_br)[1] == 0 & dim(df_br)[2] == 0) {
-        message(crayon::bold("no branch found"))
+        message(crayon::bold("Branch Coverage: 100%"))
     } else {
+      br_percents <- tapply(df_br$value, df_br[[group]], FUN = function(x) (sum(x > 0) / length(x)) * 100)
 
-        br_percents <- tapply(df_br$value, df_br[[group]], FUN = function(x) (sum(x > 0) / length(x)) * 100)
+      overall_br_percentage <- percent_coverage(df_br, by="expression")
 
-        overall_br_percentage <-percent_coverage(df_br, by="expression")
+      message(crayon::bold(paste(collapse = " ",
+                                 c(attr(x, "package")$package, to_title(attr(x, "type")), "Branch Coverage: "))),
+              format_percentage(overall_br_percentage))
 
-        message(crayon::bold(paste(collapse = " ",
-                                   c(attr(x, "package")$package, to_title(attr(x, "type")), "Branch Coverage: "))),
-                format_percentage(overall_br_percentage))
+      by_coverage <- br_percents[order(br_percents,
+                                       names(br_percents))]
 
-        by_coverage <- br_percents[order(br_percents,
-                                         names(br_percents))]
+      for (i in seq_along(by_coverage)) {
+        message(crayon::bold(paste0(names(by_coverage)[i], ": ")),
+                format_percentage(by_coverage[i]))
+      }
 
-        for (i in seq_along(by_coverage)) {
-            message(crayon::bold(paste0(names(by_coverage)[i], ": ")),
-                    format_percentage(by_coverage[i]))
-        }
-
-        invisible(x)
+      invisible(x)
     }
 }
 

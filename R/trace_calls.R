@@ -42,17 +42,20 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
     }
   }
   else if (is.call(x)) {
-    src_ref <- attr(x, "srcref") %||% impute_srcref(x, parent_ref)
-    for (i in seq_along(src_ref)) {
-        if (isTRUE(attr(src_ref[[i]], "branch"))) {
-            new_branch(src_ref[[i]], parent_functions)
-            attr(src_ref[[i]], "branch") <- NULL
-        }
-    }
-    if ((identical(x[[1]], as.name("<-")) || identical(x[[1]], as.name("="))) && # nolint
-      (is.call(x[[3]]) && identical(x[[3]][[1]], as.name("function")))) {
-      parent_functions <- c(parent_functions, as.character(x[[2]]))
-    }
+      src_ref <- attr(x, "srcref") %||% impute_srcref(x, parent_ref)
+      ## `impute_srcref` also identifies branches for R control structures (for
+      ## , if, switch and while). This information is only need here to include
+      ## the given srcref into the global .branches environment.
+      for (i in seq_along(src_ref)) {
+          if (isTRUE(attr(src_ref[[i]], "branch"))) {
+              new_branch(src_ref[[i]], parent_functions)
+              attr(src_ref[[i]], "branch") <- NULL
+          }
+      }
+      if ((identical(x[[1]], as.name("<-")) || identical(x[[1]], as.name("="))) && # nolint
+          (is.call(x[[3]]) && identical(x[[3]][[1]], as.name("function")))) {
+          parent_functions <- c(parent_functions, as.character(x[[2]]))
+      }
 
     # do not try to trace curly curly
     if (identical(x[[1]], as.name("{")) && length(x) == 2 && is.call(x[[2]]) && identical(x[[2]][[1]], as.name("{"))) {
@@ -116,6 +119,7 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
 #' @keywords internal
 new_branch <- function(src_ref, parent_functions) {
   key <- key(src_ref)
+  ## .branches[[key]]$value <- FALSE
   .branches[[key]]$srcref <- src_ref
   .branches[[key]]$functions <- parent_functions
   key
