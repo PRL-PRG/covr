@@ -45,8 +45,10 @@ reset_traces <- function() {
 }
 
 save_trace <- function(directory) {
-  tmp_file <- temp_file("covr_trace_", tmpdir = directory)
-  saveRDS(.counters, file = tmp_file)
+  counters_tmp_file <- temp_file("covr_trace_", tmpdir = directory)
+  branches_tmp_file <- temp_file("covr_branch_trace_", tmpdir = directory)
+  saveRDS(.counters, file = counters_tmp_file)
+  saveRDS(.branches, file = branches_tmp_file)
 }
 
 #' Calculate test coverage for a specific function.
@@ -109,7 +111,7 @@ file_coverage <- function(
 
   withr::with_options(c("keep.parse.data.pkgs" = TRUE), {
     lapply(source_files,
-               sys.source, keep.source = TRUE, envir = env)
+       sys.source, keep.source = TRUE, envir = env)
   })
 
   trace_environment(env)
@@ -123,28 +125,14 @@ file_coverage <- function(
       sys.source, keep.source = TRUE, envir = env)
   )
 
-  ## branches <- as.list(.branches)
-  ## class(branches) <- "branch_coverage"
-  ## coverage <- structure(
-  ##   as.list(.counters),
-  ##   class = "coverage",
-  ##   branches = branches
-  ## )
-
-  coverage <- structure(
-    as.list(.counters),
-    class = "coverage",
-    branches = as.list(.branches)
-  )
-
+  coverage <- structure(as.list(.counters), class = "coverage",
+    branches = as.list(.branches))
 
   exclude(coverage,
     line_exclusions = line_exclusions,
     function_exclusions = function_exclusions,
     path = NULL)
 }
-
-
 
 #' Calculate coverage of code directly
 #'
@@ -195,7 +183,10 @@ environment_coverage <- function(
       sys.source, keep.source = TRUE, envir = exec_env)
   )
 
-  coverage <- structure(as.list(.counters), class = "coverage")
+  coverage <- structure(
+      as.list(.counters),
+      class = "coverage",
+      branches = as.list(.branches))
 
   exclude(coverage,
     line_exclusions = line_exclusions,
@@ -394,20 +385,26 @@ package_coverage <- function(path = ".",
     res <- run_icov(pkg$path, quiet = quiet)
   }
 
+  trace_files <- list.files(path = tmp_lib, pattern = "^covr_branch_trace_[^/]+$", full.names = TRUE)
+  branches <- merge_coverage(trace_files)
+
   coverage <- structure(c(coverage, res),
       class = "coverage",
       package = pkg,
-      relative = relative_path)
+      relative = relative_path,
+      branches = as.list(branches))
 
   if (!clean) {
     attr(coverage, "library") <- tmp_lib
   }
 
+  # TODO the same for branches
   coverage <- filter_non_package_files(coverage)
 
   # Exclude both RcppExports to avoid redundant coverage information
   line_exclusions <- c("src/RcppExports.cpp", "R/RcppExports.R", line_exclusions, parse_covr_ignore())
 
+  # TODO the same for branches
   exclude(coverage,
     line_exclusions = line_exclusions,
     function_exclusions = function_exclusions,

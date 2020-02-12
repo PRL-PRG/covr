@@ -81,7 +81,7 @@ impute_srcref <- function(x, parent_ref) {
       list(
         NULL,
         make_srcref(3),
-        make_srcref(5)
+        make_srcref(5, branch=TRUE)
       )
     },
 
