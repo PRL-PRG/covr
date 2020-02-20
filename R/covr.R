@@ -111,7 +111,7 @@ file_coverage <- function(
 
   withr::with_options(c("keep.parse.data.pkgs" = TRUE), {
     lapply(source_files,
-       sys.source, keep.source = TRUE, envir = env)
+      sys.source, keep.source = TRUE, envir = env)
   })
 
   trace_environment(env)
