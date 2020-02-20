@@ -119,7 +119,7 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
 #' @keywords internal
 new_branch <- function(src_ref, parent_functions) {
   key <- key(src_ref)
-  ## .branches[[key]]$value <- FALSE
+  .branches[[key]]$value <- 0
   .branches[[key]]$srcref <- src_ref
   .branches[[key]]$functions <- parent_functions
   key

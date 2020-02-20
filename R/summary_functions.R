@@ -140,13 +140,27 @@ srcref_contains <- function (br_srcref, exp_srcref) {
   s1 <- as.integer(br_srcref)
   s2 <- as.integer(exp_srcref)
 
-  br_fst_ln <- s1[[1L]]
-  br_fst_col <- s1[[5L]]
+  br_ln1 <- s1[[1L]]
+  br_col1 <- s1[[5L]]
+  br_ln2 <- s1[[3L]]
+  br_col2 <- s1[[6L]]
 
-  exp_fst_ln <- s2[[1L]]
-  exp_fst_col <- s2[[5L]]
+  exp_ln1 <- s2[[1L]]
+  exp_col1 <- s2[[5L]]
+  exp_ln2 <- s2[[3L]]
+  exp_col2 <- s2[[6L]]
 
-  (br_fst_ln < exp_fst_ln || br_fst_ln == exp_fst_ln & br_fst_col <= exp_fst_col)
+  (br_ln1 < exp_ln1 | (br_ln1 == exp_ln1 & br_col1 <= exp_col1)) &
+    (br_ln2 > exp_ln2 | (br_ln2 == exp_ln2 & br_col2 >= exp_col2))
+}
+
+branch_coverage <- function (x) {
+  br_c <- attr(x, "branches")
+  attr(br_c, "relative") <- attr(x, "relative")
+  attr(br_c, "package") <- attr(x, "package")
+  class(br_c) <- "coverage"
+
+  br_c
 }
 
 #' Tally branch coverage
@@ -155,26 +169,24 @@ srcref_contains <- function (br_srcref, exp_srcref) {
 #' @return a `data.frame` of branch coverage 
 #' @exports
 tally_branch_coverage <- function (x) {
-  brs <- attr(x, "branches")
+  br_c <- branch_coverage(x)
 
   covered_exp <- Filter(function(x) x$value > 0, x)
 
   for(exp in covered_exp) {
-    for (i in seq_along(brs)) {
-      sameFile <- (getSrcFilename(exp$srcref) == getSrcFilename(brs[[i]]$srcref))
-      if (!isTRUE(brs[[i]]$value) & sameFile) {
-        covered_br <- srcref_contains(brs[[i]]$srcref, exp$srcref)
-        brs[[i]]$value <- covered_br
+    for (i in seq_along(br_c)) {
+      sameFile <- (getSrcFilename(exp$srcref) == getSrcFilename(br_c[[i]]$srcref))
+      if (!isTRUE(br_c[[i]]$value) & sameFile) {
+        covered_br <- srcref_contains(br_c[[i]]$srcref, exp$srcref)
+        br_c[[i]]$value <- covered_br
       }
     }
   }
 
-  if(length(brs) != 0) { 
-    df_br <- brs
-    class(df_br) <- "coverage"
-    as.data.frame(df_br)
+  if(length(br_c) != 0) {
+    as.data.frame(br_c)
   } else {
-    as.data.frame(brs)
+    as.data.frame(unclass(br_c))
   }
 }
 
@@ -240,6 +252,18 @@ print.coverages <- function(x, ...) {
   invisible(x)
 }
 
+#' @export
+print.coverages <- function(x, ...) {
+  for (i in seq_along(x)) {
+    # Add a blank line between consecutive coverage items
+    if (i != 1) {
+      message()
+    }
+    print(x[[i]], ...)
+  }
+  invisible(x)
+}
+
 #' Print the branch coverage of a coverage object
 #'
 #' @param x the coverage object to be printed
@@ -248,36 +272,48 @@ print.coverages <- function(x, ...) {
 #' @return The coverage object (invisibly).
 #' @export
 print_branch_coverage <- function(x, group = c("filename", "functions")) {
-    stopifnot(inherits(x, "coverage"))
+  stopifnot(inherits(x, "coverage"))
 
-    if (length(x) == 0) {
-      return()
+  if (length(x) == 0) {
+    return()
+  }
+  group <- match.arg(group)
+
+  df_br <- tally_branch_coverage(x)
+
+  br_c <- branch_coverage(x)
+  filenames <- display_name(x)
+  br_filenames <- display_name(br_c)
+  no_branch <- unique(filenames[!(filenames %in% br_filenames)])
+
+  if(dim(df_br)[1] == 0 & dim(df_br)[2] == 0) {
+    message(crayon::bold(paste(collapse = " ",
+                               c(attr(x, "package")$package, to_title(attr(x, "type")), "branch coverage: "))),
+            format_percentage(100))
+  } else {
+    br_percents <- tapply(df_br$value, df_br[[group]], FUN = function(x) (sum(x > 0) / length(x)) * 100)
+    browser()
+    overall_br_percentage <- (sum(df_br$value > 0) / length(df_br$value)) * 100
+
+    message(crayon::bold(paste(collapse = " ",
+                               c(attr(x, "package")$package, to_title(attr(x, "type")), "branch coverage: "))),
+            format_percentage(overall_br_percentage))
+
+    by_coverage <- br_percents[order(br_percents,
+                                     names(br_percents))]
+
+    for (i in seq_along(by_coverage)) {
+      message(crayon::bold(paste0(names(by_coverage)[i], ": ")),
+              format_percentage(by_coverage[i]))
     }
-    group <- match.arg(group)
 
-    df_br <- tally_branch_coverage(x)
-
-    if(dim(df_br)[1] == 0 & dim(df_br)[2] == 0) {
-        message(crayon::bold("Branch Coverage: 100%"))
-    } else {
-      br_percents <- tapply(df_br$value, df_br[[group]], FUN = function(x) (sum(x > 0) / length(x)) * 100)
-
-      overall_br_percentage <- percent_coverage(df_br, by="expression")
-
-      message(crayon::bold(paste(collapse = " ",
-                                 c(attr(x, "package")$package, to_title(attr(x, "type")), "Branch Coverage: "))),
-              format_percentage(overall_br_percentage))
-
-      by_coverage <- br_percents[order(br_percents,
-                                       names(br_percents))]
-
-      for (i in seq_along(by_coverage)) {
-        message(crayon::bold(paste0(names(by_coverage)[i], ": ")),
-                format_percentage(by_coverage[i]))
+    if(length(no_branch) != 0) {
+      for (i in seq_along(no_branch)) {
+        message(crayon::bold(paste0(no_branch[[i]], ": N/A")))
       }
-
-      invisible(x)
     }
+  }
+  invisible(x)
 }
 
 format_percentage <- function(x) {
@@ -307,6 +343,7 @@ markers.coverages <- function(x, ...) {
                       autoSelect = "first")
   invisible()
 }
+
 markers.coverage <- function(x, ...) {
 
   # generate the markers
