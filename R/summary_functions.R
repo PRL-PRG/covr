@@ -155,17 +155,16 @@ srcref_contains <- function (br_srcref, exp_srcref) {
 }
 
 branch_coverage <- function (x) {
-  br_c <- attr(x, "branches")
-  attr(br_c, "relative") <- attr(x, "relative")
-  attr(br_c, "package") <- attr(x, "package")
-  class(br_c) <- "coverage"
-
+  br_c <- structure(attr(x, "branches"),
+                    relative = attr(x, "relative"),
+                    package = attr(x, "package"),
+                    class = "coverage")
   br_c
 }
 
 #' Tally branch coverage
 #'
-#' @inheritParams print.branch_coverage
+#' @inheritParams print_branch_coverage
 #' @return a `data.frame` of branch coverage 
 #' @exports
 tally_branch_coverage <- function (x) {
@@ -266,18 +265,14 @@ print.coverages <- function(x, ...) {
 
 #' Print the branch coverage of a coverage object
 #'
-#' @param x the coverage object to be printed
-#' @param group whether to group coverage by filename or functions
-#' @param ... additional arguments ignored
+## ' @param x the coverage object to be printed
+## ' @param group whether to group coverage by filename or functions
+## ' @param ... additional arguments ignored
+#' @inheritParams print.coverage
 #' @return The coverage object (invisibly).
 #' @export
 print_branch_coverage <- function(x, group = c("filename", "functions")) {
   stopifnot(inherits(x, "coverage"))
-
-  if (length(x) == 0) {
-    return()
-  }
-  group <- match.arg(group)
 
   df_br <- tally_branch_coverage(x)
 
@@ -288,11 +283,10 @@ print_branch_coverage <- function(x, group = c("filename", "functions")) {
 
   if(dim(df_br)[1] == 0 & dim(df_br)[2] == 0) {
     message(crayon::bold(paste(collapse = " ",
-                               c(attr(x, "package")$package, to_title(attr(x, "type")), "branch coverage: "))),
-            format_percentage(100))
+                               c(attr(x, "package")$package, to_title(attr(x, "type")), "branch coverage: N/A"))))
   } else {
     br_percents <- tapply(df_br$value, df_br[[group]], FUN = function(x) (sum(x > 0) / length(x)) * 100)
-    browser()
+
     overall_br_percentage <- (sum(df_br$value > 0) / length(df_br$value)) * 100
 
     message(crayon::bold(paste(collapse = " ",

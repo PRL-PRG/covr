@@ -45,9 +45,9 @@ reset_traces <- function() {
 }
 
 save_trace <- function(directory) {
-  counters_tmp_file <- temp_file("covr_trace_", tmpdir = directory)
+  tmp_file <- temp_file("covr_trace_", tmpdir = directory)
   branches_tmp_file <- temp_file("covr_branch_trace_", tmpdir = directory)
-  saveRDS(.counters, file = counters_tmp_file)
+  saveRDS(.counters, file = tmp_file)
   saveRDS(.branches, file = branches_tmp_file)
 }
 
