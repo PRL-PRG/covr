@@ -1,4 +1,4 @@
-test_that("test", {
+test_that("function_inside_branch", {
     f <- function(x) {
         if (x > 0) {
             g <- function(x) {2}
@@ -13,7 +13,7 @@ test_that("test", {
   expect_equal(srcref_contains (s1, s2), TRUE)
 })
 
-test_that("test", {
+test_that("function_outside_branch", {
   f <- function(x) {
     if (x > 0) {
       1
@@ -28,7 +28,7 @@ test_that("test", {
   expect_equal(srcref_contains (s1, s2), FALSE)
 })
 
-test_that("test", {
+test_that("app_inside_condition", {
   f <- function(x) {
     if (x > 0) {
       if (g(x) > 2) {
@@ -47,7 +47,7 @@ test_that("test", {
   expect_equal(srcref_contains (s1, s2), FALSE)
 })
 
-test_that("test", {
+test_that("nested", {
   a <- 0
   f <- function(x) {
     if (x > 0) {
