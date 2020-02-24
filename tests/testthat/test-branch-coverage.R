@@ -1,3 +1,7 @@
+#######################################################
+#              if branch coverage test                #
+#######################################################
+
 test_that("empty_function", {
     code <- "f <- function(x) {}"
 
@@ -470,4 +474,111 @@ test_that("no_else_nested3", {
   expect_equal(nrow(df), 3)
   ## none of which are executed
   expect_equal(sum(df$value), 0)
+})
+
+
+
+#######################################################
+#            while branch coverage test               #
+#######################################################
+
+
+test_that("simple", {
+    code <- "f <- function (i) {
+             while (i < 6) {
+               print(i)
+               i = i+1
+             }
+      }"
+
+    test <- "f(1)"
+
+    cc <- code_coverage(code, test)
+    df <- tally_branch_coverage(cc)
+
+    #there shall be one branch
+    expect_equal(nrow(df), 1)
+
+    # 100%
+    ## print(cc, include_branches=TRUE)
+})
+
+test_that("nested-while", {
+  code <- "f <- function (i) {
+             while (i < 3) {
+               i = i + 2
+               print(i)
+               while(FALSE){
+                 print(73)
+               }
+             }
+      }"
+
+  test <- "f(1)"
+
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  # there shall be two branches
+  expect_equal(nrow(df), 2)
+
+  # 50%
+  print(cc, include_branches=TRUE)
+})
+
+test_that("one-line-while", {
+  code <- "f <- function (x) {
+             while(x < 5) {x <- x+1; print(x);}
+      }"
+
+  test <- "f(3)"
+
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  # there shall be one branch
+  expect_equal(nrow(df), 1)
+
+  # 100%
+  print(cc, include_branches=TRUE)
+})
+
+test_that("while-if-mix", {
+  code <- "f <- function (x) {
+             while(x < 5) {x <- x+1; if (x == 3) break; print(x);}
+      }"
+
+  test <- "f(3)"
+
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  # there shall be two branches
+  expect_equal(nrow(df), 2)
+
+  # 50%
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
+})
+
+test_that("if-while-mix", {
+  code <- "f <- function (x) {
+             if(x > 5) {
+               while(x < 10) {
+                 x <- x+1; if (x == 3) break; print(x);
+               }
+             } else {
+               print(x)
+             }
+      }"
+
+  test <- "f(6)"
+
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  # there shall be one branch
+  expect_equal(nrow(df), 4)
+
+  # 50%
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
 })

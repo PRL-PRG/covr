@@ -121,7 +121,7 @@ impute_srcref <- function(x, parent_ref) {
   )
 }
 
-is_conditional_or_loop <- function(x) is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "else", "switch")
+is_conditional_or_loop <- function(x) is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "else", "switch", "while")
 
 package_parse_data <- new.env()
 
