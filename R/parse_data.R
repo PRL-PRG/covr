@@ -73,7 +73,7 @@ impute_srcref <- function(x, parent_ref) {
         NULL,
         NULL,
         make_srcref(2),
-        make_srcref(3)
+        make_srcref(3, branch=TRUE)
       )
     },
 
