@@ -85,7 +85,8 @@ function_coverage <- function(fun, code = NULL, env = NULL, enc = parent.frame()
     eval(code, enc)
   )
 
-  structure(as.list(.counters), class = "coverage")
+  structure(as.list(.counters), class = "coverage",
+            branches = as.list(.branches))
 }
 
 #' Calculate test coverage for sets of files
