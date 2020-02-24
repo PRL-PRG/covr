@@ -1,7 +1,6 @@
 #######################################################
 #              if branch coverage test                #
 #######################################################
-
 test_that("empty_function", {
     code <- "f <- function(x) {}"
 
@@ -250,14 +249,12 @@ test_that("multiple_files1", {
     on.exit(file.remove(src1, test1, src2, test2))
 
     cc <- file_coverage(c(src1, src2), c(test1, test2))
-    browser()
-
     df <- tally_branch_coverage(cc)
 
-    ## there shall be six branches
-    expect_equal(nrow(df), 6)
+    ## there shall be three branches
+    expect_equal(nrow(df), 3)
     ## three of which are executed
-    expect_equal(sum(df$value), 3)
+    expect_equal(sum(df$value), 1)
 })
 
 test_that("multiple_files2", {
@@ -476,13 +473,9 @@ test_that("no_else_nested3", {
   expect_equal(sum(df$value), 0)
 })
 
-
-
 #######################################################
 #            while branch coverage test               #
 #######################################################
-
-
 test_that("simple", {
     code <- "f <- function (i) {
              while (i < 6) {
@@ -500,7 +493,7 @@ test_that("simple", {
     expect_equal(nrow(df), 1)
 
     # 100%
-    ## print(cc, include_branches=TRUE)
+    expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
 })
 
 test_that("nested-while", {
@@ -523,7 +516,7 @@ test_that("nested-while", {
   expect_equal(nrow(df), 2)
 
   # 50%
-  print(cc, include_branches=TRUE)
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
 })
 
 test_that("one-line-while", {
@@ -540,7 +533,7 @@ test_that("one-line-while", {
   expect_equal(nrow(df), 1)
 
   # 100%
-  print(cc, include_branches=TRUE)
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
 })
 
 test_that("while-if-mix", {
@@ -581,4 +574,110 @@ test_that("if-while-mix", {
 
   # 50%
   expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
+})
+
+#######################################################
+#              for branch coverage test               #
+#######################################################
+test_that("non-interative", {
+  code <- "f <- function(x) {
+       print(x)
+       for(i in numeric()) {
+               print(73)
+             }
+     }"
+
+  test <- "f(1)"
+
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  # there shall be one branch
+  expect_equal(nrow(df), 1)
+
+  ## 0%
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 0)
+})
+
+test_that("simple", {
+  code <- "f <- function(x) {
+       for(i in 1:10) {
+         print(x)
+       }
+     }"
+
+  test <- "f(1)"
+
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  # there shall be one branch
+  expect_equal(nrow(df), 1)
+
+  ## 0%
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
+})
+
+test_that("nested", {
+  code <- "f <- function(x) {
+       for(i in 1:10) {
+         for(j in 1:5) {
+           print(i+j)
+         }
+       }
+       x+1
+     }"
+
+  test <- "f(1)"
+
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  # there shall be two branches
+  expect_equal(nrow(df), 2)
+
+  ## 0%
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
+})
+
+test_that("nested", {
+  code <- "f <- function(x) {
+       for(i in 1:10) {
+         for(j in numeric()) {
+           print(j)
+         }
+         x <- x+1
+       }
+       print(x)
+     }"
+
+  test <- "f(1)"
+
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  # there shall be two branches
+  expect_equal(nrow(df), 2)
+
+  ## 50%
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
+})
+
+test_that("one-line-for", {
+  code <- "f <- function(x) {
+       for(i in 1:10) { print(i) }
+
+       for(j in 1:5) { print(j)}
+     }"
+
+  test <- "f(1)"
+
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  #there shall be two branches
+  expect_equal(nrow(df), 2)
+
+  ## 50%
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
 })
