@@ -283,14 +283,14 @@ print_branch_coverage <- function(x, group = c("filename", "functions")) {
 
   if(dim(df_br)[1] == 0 & dim(df_br)[2] == 0) {
     message(crayon::bold(paste(collapse = " ",
-                               c(attr(x, "package")$package, to_title(attr(x, "type")), "branch coverage: N/A"))))
+                               c(attr(x, "package")$package, to_title(attr(x, "type")), "Branch Coverage: N/A"))))
   } else {
     br_percents <- tapply(df_br$value, df_br[[group]], FUN = function(x) (sum(x > 0) / length(x)) * 100)
 
     overall_br_percentage <- (sum(df_br$value > 0) / length(df_br$value)) * 100
 
     message(crayon::bold(paste(collapse = " ",
-                               c(attr(x, "package")$package, to_title(attr(x, "type")), "branch coverage: "))),
+                               c(attr(x, "package")$package, to_title(attr(x, "type")), "Branch Coverage: "))),
             format_percentage(overall_br_percentage))
 
     by_coverage <- br_percents[order(br_percents,
