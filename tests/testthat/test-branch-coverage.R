@@ -386,7 +386,7 @@ test_that("no_else1", {
 
     ## there shall be one branch
     expect_equal(nrow(df), 1)
-    ## one of which are executed
+    ## one of which is executed
     expect_equal(sum(df$value), 1)
 })
 
@@ -403,7 +403,7 @@ test_that("no_else2", {
 
   ## there shall be one branch
   expect_equal(nrow(df), 1)
-  ## none of which are executed
+  ## none of which is executed
   expect_equal(sum(df$value), 0)
 })
 
@@ -447,7 +447,7 @@ test_that("no_else_nested2", {
 
   ## there shall be three branch
   expect_equal(nrow(df), 3)
-  ## one of which are executed
+  ## one of which is executed
   expect_equal(sum(df$value), 1)
 })
 
@@ -469,7 +469,7 @@ test_that("no_else_nested3", {
 
   ## there shall be three branch
   expect_equal(nrow(df), 3)
-  ## none of which are executed
+  ## none of which is executed
   expect_equal(sum(df$value), 0)
 })
 
@@ -663,7 +663,7 @@ test_that("nested", {
   expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
 })
 
-test_that("one-line-for", {
+test_that("one_line_for", {
   code <- "f <- function(x) {
        for(i in 1:10) { print(i) }
 
@@ -680,4 +680,52 @@ test_that("one-line-for", {
 
   ## 50%
   expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
+})
+
+#######################################################
+#             switch branch coverage test             #
+#######################################################
+test_that("simple_switch", {
+  code <- "centre <- function(x, type) {
+            switch(type,
+                   mean = mean(x),
+                   median = median(x),
+                   trimmed = mean(x, trim = .1))
+}"
+
+  test <- "centre(c(1,2,3), \"mean\")"
+
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  #there shall be three branches
+  expect_equal(nrow(df), 3)
+
+  ## one of which is executed
+  expect_equal(sum(df$value), 1)
+})
+
+test_that("if_switch_mix", {
+  code <- "monthly_allowance <- function(x) {
+             if(x == \"dog\") {
+               print(\"5 bones\")
+             } else if (x == \"cat\") {
+               print(\"10 fish\")
+             }
+
+             switch(as.character(x),
+                    \"hyeyoung\" = {print (\"1000 czk\")},
+                    \"charlie\" = {print (\"500 czk\")})
+  }"
+
+  test <- "monthly_allowance (\"dog\")"
+
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  #there shall be five branches
+  expect_equal(nrow(df), 5)
+
+  ## one of which is executed
+  expect_equal(sum(df$value), 1)
 })

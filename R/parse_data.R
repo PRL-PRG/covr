@@ -114,7 +114,9 @@ impute_srcref <- function(x, parent_ref) {
 
       exprs <- lapply(exprs, ignore_dots)
 
-      c(list(NULL), lapply(exprs, make_srcref))
+      c(list(NULL),
+        list(make_srcref(3)),
+        lapply(exprs[-1], make_srcref, branch=TRUE))
     },
 
     NULL
