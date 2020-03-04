@@ -166,7 +166,7 @@ branch_coverage <- function (x) {
 #'
 #' @inheritParams print_branch_coverage
 #' @return a `data.frame` of branch coverage 
-#' @exports
+#' @export
 tally_branch_coverage <- function (x) {
   br_c <- branch_coverage(x)
 
@@ -176,8 +176,8 @@ tally_branch_coverage <- function (x) {
     for (i in seq_along(br_c)) {
       sameFile <- (getSrcFilename(exp$srcref) == getSrcFilename(br_c[[i]]$srcref))
       if (!isTRUE(br_c[[i]]$value) & sameFile) {
-        covered_br <- srcref_contains(br_c[[i]]$srcref, exp$srcref)
-        br_c[[i]]$value <- covered_br
+        if(srcref_contains(br_c[[i]]$srcref, exp$srcref))
+        br_c[[i]]$value <- exp$value
       }
     }
   }
