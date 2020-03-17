@@ -42,16 +42,26 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
     }
   }
   else if (is.call(x)) {
-    src_ref <- attr(x, "srcref") %||% impute_srcref(x, parent_ref)
-    ## `impute_srcref` also identifies branches for R control structures (for
-    ## , if, switch and while). This information is only need here to include
-    ## the given srcref into the global .branches environment.
+    src_ref <- attr(x, "srcref") # %||% impute_srcref(x, parent_ref)
+    ## `src_ref` also identifies branches for R control structures (for , if,
+    ## switch and while). This information is only need here to include the
+    ## given srcref into the global .branches environment.
     for (i in seq_along(src_ref)) {
-      if (isTRUE(attr(src_ref[[i]], "branch"))) {
-        new_branch(src_ref[[i]], parent_functions)
+      branch <- attr(src_ref[[i]], "branch")
+      if (!is.null(branch)) {
         attr(src_ref[[i]], "branch") <- NULL
+        if (branch > 0) {
+          new_branch(src_ref[[i]], parent_functions)
+          if (branch == 2 && identical(x[[1]], as.name("if"))) {
+            tmp <- as.call(c(as.list(x), list(NULL)))
+            attributes(tmp) <- attributes(x)
+            x <- tmp
+            browser()
+          }
+        }
       }
     }
+
     if ((identical(x[[1]], as.name("<-")) || identical(x[[1]], as.name("="))) && # nolint
         (is.call(x[[3]]) && identical(x[[3]][[1]], as.name("function")))) {
       parent_functions <- c(parent_functions, as.character(x[[2]]))
@@ -76,18 +86,29 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
       return(x)
     }
 
-    fun_body <- body(x)
+    src_ref <- attr(x, "srcref")
+
+    if (!is.null(src_ref)) {
+      fun_call <- call("function", formals(x), body(x))
+      fun_call <- impute_srcref_ast(fun_call, src_ref)
+      fun_formals <- fun_call[[2]]
+      fun_body <- fun_call[[3]]
+    } else {
+      fun_formals <- formals(x)
+      fun_body <- body(x)
+    }
 
     if (!is.null(attr(x, "srcref")) &&
-       (is.symbol(fun_body) || !identical(fun_body[[1]], as.name("{")))) {
-      src_ref <- attr(x, "srcref")
+          (is.symbol(fun_body) ||
+             !(identical(fun_body[[1]], as.name("{")) ||
+                 is_conditional_or_loop(fun_body)))) {
       key <- new_counter(src_ref, parent_functions)
       fun_body <- count(key, trace_calls(fun_body, parent_functions))
     } else {
       fun_body <- trace_calls(fun_body, parent_functions)
     }
 
-    new_formals <- trace_calls(formals(x), parent_functions)
+    new_formals <- trace_calls(fun_formals, parent_functions)
     if (is.null(new_formals)) new_formals <- list()
     formals(x) <- new_formals
     body(x) <- fun_body

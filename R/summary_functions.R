@@ -136,30 +136,38 @@ zero_coverage <- function(x, ...) {
 #' Checks whether a branch contains an expression
 #' s1: a srcref of a branch
 #' s2: a srcref of an expression
-srcref_contains <- function (br_srcref, exp_srcref) {
+srcref_contains <- function (br_srcref, expr_srcref) {
   s1 <- as.integer(br_srcref)
-  s2 <- as.integer(exp_srcref)
+  s2 <- as.integer(expr_srcref)
 
   br_ln1 <- s1[[1L]]
   br_col1 <- s1[[5L]]
   br_ln2 <- s1[[3L]]
   br_col2 <- s1[[6L]]
 
-  exp_ln1 <- s2[[1L]]
-  exp_col1 <- s2[[5L]]
-  exp_ln2 <- s2[[3L]]
-  exp_col2 <- s2[[6L]]
+  expr_ln1 <- s2[[1L]]
+  expr_col1 <- s2[[5L]]
+  expr_ln2 <- s2[[3L]]
+  expr_col2 <- s2[[6L]]
 
-  (br_ln1 < exp_ln1 | (br_ln1 == exp_ln1 & br_col1 <= exp_col1)) &
-    (br_ln2 > exp_ln2 | (br_ln2 == exp_ln2 & br_col2 >= exp_col2))
+  if (expr_col1 > expr_col2) {
+    # this is the case of an expression that was injected at the end of
+    # an implicit other branch in `if (...) X`
+    br_ln1 == expr_ln1 && br_col1 == expr_col1 &&
+      br_ln2 == expr_ln2 && br_col2 == expr_col2
+  } else {
+    (br_ln1 < expr_ln1 || (br_ln1 == expr_ln1 && br_col1 <= expr_col1)) &&
+      (br_ln2 > expr_ln2 || (br_ln2 == expr_ln2 && br_col2 >= expr_col2))
+  }
 }
 
 branch_coverage <- function (x) {
-  br_c <- structure(attr(x, "branches"),
-                    relative = attr(x, "relative"),
-                    package = attr(x, "package"),
-                    class = "coverage")
-  br_c
+  structure(
+    attr(x, "branches"),
+    relative = attr(x, "relative"),
+    package = attr(x, "package"),
+    class = "coverage"
+  )
 }
 
 #' Tally branch coverage
@@ -168,24 +176,23 @@ branch_coverage <- function (x) {
 #' @return a `data.frame` of branch coverage 
 #' @export
 tally_branch_coverage <- function (x) {
-  br_c <- branch_coverage(x)
+  branches <- branch_coverage(x)
+  covered_exprs <- Filter(function(x) x$value > 0, x)
 
-  covered_exp <- Filter(function(x) x$value > 0, x)
-
-  for(exp in covered_exp) {
-    for (i in seq_along(br_c)) {
-      sameFile <- (getSrcFilename(exp$srcref) == getSrcFilename(br_c[[i]]$srcref))
-      if (!isTRUE(br_c[[i]]$value) & sameFile) {
-        if(srcref_contains(br_c[[i]]$srcref, exp$srcref))
-        br_c[[i]]$value <- exp$value
+  for(expr in covered_exprs) {
+    for (i in seq_along(branches)) {
+      same_file <- getSrcFilename(expr$srcref) == getSrcFilename(branches[[i]]$srcref)
+      if (same_file && branches[[i]]$value == 0) {
+        branches[[i]]$value <- sum(srcref_contains(branches[[i]]$srcref, expr$srcref))
       }
     }
   }
 
-  if(length(br_c) != 0) {
-    as.data.frame(br_c)
+  if(length(branches) != 0) {
+    df <- as.data.frame(branches)
+    df[order(df$first_line, df$first_byte), ]
   } else {
-    as.data.frame(unclass(br_c))
+    as.data.frame(unclass(branches))
   }
 }
 

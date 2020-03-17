@@ -1,9 +1,12 @@
 #' @importFrom utils getParseData getSrcref tail
-impute_srcref <- function(x, parent_ref) {
-  if (!is_conditional_or_loop(x)) return(NULL)
-  if (is.null(parent_ref)) return(NULL)
+impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
+  if (is.null(parent_ref)) return(x)
+  if (!is.call(x)) return(x)
 
-  pd <- get_tokens(parent_ref)
+  pd <- tryCatch(get_tokens(parent_ref), error=function(e) return(NULL))
+
+  if (is.null(pd)) return(x)
+
   pd_expr <-
     (
       (pd$line1 == parent_ref[[1L]] & pd$line2 == parent_ref[[3L]]) |
@@ -12,12 +15,15 @@ impute_srcref <- function(x, parent_ref) {
     pd$col1 == parent_ref[[2L]] &
     pd$col2 == parent_ref[[4L]] &
     pd$token == "expr"
+
   pd_expr_idx <- which(pd_expr)
-  if (length(pd_expr_idx) == 0L) return(NULL) # srcref not found in parse data
+
+  if (length(pd_expr_idx) == 0L) return(x) # srcref not found in parse data
 
   if (length(pd_expr_idx) > 1) pd_expr_idx <- pd_expr_idx[[1]]
 
   expr_id <- pd$id[pd_expr_idx]
+
   pd_child <- pd[pd$parent == expr_id, ]
   pd_child <- pd_child[order(pd_child$line1, pd_child$col1), ]
 
@@ -30,12 +36,12 @@ impute_srcref <- function(x, parent_ref) {
     line_offset <- 0
   }
 
-  make_srcref <- function(from, to = from, branch=FALSE) {
+  make_srcref <- function(from, to = from) {
     if (length(from) == 0) {
       return(NULL)
     }
 
-    ref <- srcref(
+    srcref(
       attr(parent_ref, "srcfile"),
       c(pd_child$line1[from] - line_offset,
         pd_child$col1[from],
@@ -47,83 +53,260 @@ impute_srcref <- function(x, parent_ref) {
         pd_child$line2[to]
       )
     )
+  }
 
-    if (branch) {
-      attr(ref, "branch") <- TRUE
-    }
-
+  make_branch_srcref <- function(from) {
+    ref <- make_srcref(from)
+    attr(ref, "branch") <- 1
     ref
   }
 
-  switch(
-    as.character(x[[1L]]),
-    "if" = {
-      src_ref <- list(
-        NULL,
-        make_srcref(3),
-        make_srcref(5, branch=TRUE),
-        make_srcref(7, branch=TRUE)
-      )
-      # the fourth component isn't used for an "if" without "else"
-      src_ref[seq_along(x)]
-    },
+  make_default_branch_srcref <- function() {
+    last_expr <- pd_child[nrow(pd_child), ]
 
-    "for" = {
-      list(
-        NULL,
-        NULL,
-        make_srcref(2),
-        make_srcref(3, branch=TRUE)
-      )
-    },
+    outer_scope_id <- pd$parent[pd_expr_idx]
+    outer_scope <- pd[pd$id == outer_scope_id, ]
 
-    "while" = {
-      list(
-        NULL,
-        make_srcref(3),
-        make_srcref(5, branch=TRUE)
-      )
-    },
+    ref <- srcref(
+      attr(parent_ref, "srcfile"),
+      c(last_expr$line2,
+        last_expr$col2 + 1,
+        outer_scope$line2,
+        outer_scope$col2,
+        last_expr$col2 + 1,
+        outer_scope$col2,
+        last_expr$line2,
+        outer_scope$line2
+        )
+    )
 
-    "switch" = {
-      exprs <- tail(which(pd_child$token == "expr"), n = -1)
+    attr(ref, "branch") <- 2
+    ref
+  }
 
-      # Add NULLs for drop through conditions
-      token <- pd_child$token
-      next_token <- c(tail(token, n = -1), NA_character_)
-      drops <- which(token == "EQ_SUB" & next_token != "expr")
+  fun <- as.character(x[[1]])
+  if ((startsWith(fun, "%") && endsWith(fun, "%")) ||
+        fun %in% c("~", "~", "+", "-", "*", "/", "^", "<", ">", "<=", ">=", "==", "&", "&&", "|", "||", "$", "[", "[[")) {
+    if (length(x) == 3) {
+      x[[2]] <- impute_srcref_ast(x[[2]], make_srcref(1))
+      x[[3]] <- impute_srcref_ast(x[[3]], make_srcref(3))
+    } else {
+      x[[1]] <- impute_srcref_ast(x[[1]], make_srcref(2))
+    }
+  } else if (fun == "<-" || fun == "=") {
+    x[[3]] <- impute_srcref_ast(x[[3]], make_srcref(3))
+  } else if (fun == "->") {
+    x[[2]] <- impute_srcref_ast(x[[2]], make_srcref(1))
+  } else if (fun == "if") {
+    refs <- list(NULL)
+    cond_srcref <- make_srcref(3)
+    x[[2]] <- impute_srcref_ast(x[[2]], cond_srcref)
 
-      exprs <- sort(c(exprs, drops))
+    then_srcref <- make_branch_srcref(5)
+    x[[3]] <- impute_srcref_ast(x[[3]], then_srcref)
 
-      ignore_drop_through <- function(x) {
-        if (x %in% drops) {
-          return(NULL)
-        }
-        x
-      }
+    else_srcref <- if (length(x) == 4) {
+      ref <- make_branch_srcref(7)
+      x[[4]] <- impute_srcref_ast(x[[4]], ref)
+      ref
+    } else {
+      make_default_branch_srcref()
+    }
 
-      exprs <- lapply(exprs, ignore_drop_through)
+    attr(x, "srcref") <- list(NULL, cond_srcref, then_srcref, else_srcref)
+  } else if (fun == "for") {
+    stopifnot(FALSE)
+  } else if (fun == "while") {
+    stopifnot(FALSE)
+  } else if (fun == "switch") {
+    stopifnot(FALSE)
+  } else if (fun == "function") {
+    # update formals
+    args <- which(sapply(x[[2]], function(y) !is.symbol(y) || as.character(y) != ""))
+    srcrefs <- which(pd_child$token == "expr")
 
-      # Don't create srcrefs for ... conditions
-      ignore_dots <- function(x) {
-        if (identical("...", pd$text[pd$parent == pd_child$id[x]])) {
-          return(NULL)
-        }
-        x
-      }
+    stopifnot(length(args) == length(srcrefs) - 1)
 
-      exprs <- lapply(exprs, ignore_dots)
+    for (i in seq_along(args)) {
+      arg <- args[i]
+      x[[2]][[arg]] <- impute_srcref_ast(x[[2]][[arg]], make_srcref(srcrefs[i]))
+    }
 
-      c(list(NULL),
-        list(make_srcref(3)),
-        lapply(exprs[-1], make_srcref, branch=TRUE))
-    },
+    # update body
+    x[[3]] <- impute_srcref_ast(x[[3]], make_srcref(nrow(pd_child)))
+  } else if (fun == "{") {
+    refs <- attr(x, "srcref")
+    stopifnot(length(x) == length(refs))
+    for (i in seq_along(x)[-1]) {
+      x[[i]] <- impute_srcref_ast(x[[i]], refs[[i]])
+    }
+  } else {
+    refs <- which(pd_child$token == "expr")
+    stopifnot(length(x) == length(refs))
 
-    NULL
-  )
+    for (i in seq_along(x)) {
+      x[[i]] <- impute_srcref_ast(x[[i]], make_srcref(refs[i]))
+    }
+  }
+
+  x
 }
 
 is_conditional_or_loop <- function(x) is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "else", "switch", "while")
+## #' @importFrom utils getParseData getSrcref tail
+## impute_srcref <- function(x, parent_ref) {
+##   if (!is_conditional_or_loop(x)) return(NULL)
+##   if (is.null(parent_ref)) return(NULL)
+
+##   pd <- get_tokens(parent_ref)
+##   pd_expr <-
+##     (
+##       (pd$line1 == parent_ref[[1L]] & pd$line2 == parent_ref[[3L]]) |
+##       (pd$line1 == parent_ref[[7L]] & pd$line2 == parent_ref[[8L]])
+##     ) &
+##     pd$col1 == parent_ref[[2L]] &
+##     pd$col2 == parent_ref[[4L]] &
+##     pd$token == "expr"
+##   pd_expr_idx <- which(pd_expr)
+##   if (length(pd_expr_idx) == 0L) return(NULL) # srcref not found in parse data
+
+##   if (length(pd_expr_idx) > 1) pd_expr_idx <- pd_expr_idx[[1]]
+
+##   expr_id <- pd$id[pd_expr_idx]
+##   pd_child <- pd[pd$parent == expr_id, ]
+##   pd_child <- pd_child[order(pd_child$line1, pd_child$col1), ]
+
+##   # exclude comments
+##   pd_child <- pd_child[pd_child$token != "COMMENT", ]
+
+##   if (pd$line1[pd_expr_idx] == parent_ref[[7L]] & pd$line2[pd_expr_idx] == parent_ref[[8L]]) {
+##     line_offset <- parent_ref[[7L]] - parent_ref[[1L]]
+##   } else {
+##     line_offset <- 0
+##   }
+
+##   make_srcref <- function(from, to = from) {
+##     if (length(from) == 0) {
+##       return(NULL)
+##     }
+
+##     srcref(
+##       attr(parent_ref, "srcfile"),
+##       c(pd_child$line1[from] - line_offset,
+##         pd_child$col1[from],
+##         pd_child$line2[to] - line_offset,
+##         pd_child$col2[to],
+##         pd_child$col1[from],
+##         pd_child$col2[to],
+##         pd_child$line1[from],
+##         pd_child$line2[to]
+##       )
+##     )
+##   }
+
+##   make_branch_srcref <- function(from) {
+##     ref <- make_srcref(from)
+##     attr(ref, "branch") <- 1
+##     ref
+##   }
+
+##   make_default_branch_srcref <- function() {
+##     last_expr <- pd_child[nrow(pd_child), ]
+
+##     outer_scope_id <- pd$parent[pd_expr_idx]
+##     outer_scope <- pd[pd$id == outer_scope_id, ]
+
+##     ref <- srcref(
+##       attr(parent_ref, "srcfile"),
+##       c(last_expr$line2,
+##         last_expr$col2 + 1,
+##         outer_scope$line2,
+##         outer_scope$col2 - 1,
+##         last_expr$col2 + 1,
+##         outer_scope$col2 - 1,
+##         last_expr$line2,
+##         outer_scope$line2
+##         )
+##     )
+
+##     attr(ref, "branch") <- 2
+##     ref
+##   }
+
+##   #browser()
+
+##   switch(
+##     as.character(x[[1L]]),
+##     "if" = {
+##       ## browser()
+##       list(
+##         NULL,
+##         make_srcref(3),
+##         make_branch_srcref(5),
+##         if (length(x) == 4) make_branch_srcref(7) else make_default_branch_srcref()
+##       )
+##     },
+
+##     "for" = {
+##       list(
+##         NULL,
+##         NULL,
+##         make_srcref(2),
+##         make_branch_srcref(3),
+##         make_default_branch_srcref()
+##       )
+##     },
+
+##     "while" = {
+##       list(
+##         NULL,
+##         make_srcref(3),
+##         make_branch_srcref(5),
+##         make_default_branch_srcref()
+##       )
+##     },
+
+##     "switch" = {
+##       exprs <- tail(which(pd_child$token == "expr"), n = -1)
+
+##       # Add NULLs for drop through conditions
+##       token <- pd_child$token
+##       next_token <- c(tail(token, n = -1), NA_character_)
+##       drops <- which(token == "EQ_SUB" & next_token != "expr")
+
+##       exprs <- sort(c(exprs, drops))
+
+##       ignore_drop_through <- function(x) {
+##         if (x %in% drops) {
+##           return(NULL)
+##         }
+##         x
+##       }
+
+##       exprs <- lapply(exprs, ignore_drop_through)
+
+##       # Don't create srcrefs for ... conditions
+##       ignore_dots <- function(x) {
+##         if (identical("...", pd$text[pd$parent == pd_child$id[x]])) {
+##           return(NULL)
+##         }
+##         x
+##       }
+
+##       exprs <- lapply(exprs, ignore_dots)
+
+##       browser()
+##       # TODO: add default branch is there is no default case
+##       c(list(NULL),
+##         list(make_srcref(3)),
+##         lapply(exprs[-1], make_branch_srcref))
+##     },
+
+##     NULL
+##   )
+## }
+
+## is_conditional_or_loop <- function(x) is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "else", "switch", "while")
 
 package_parse_data <- new.env()
 
