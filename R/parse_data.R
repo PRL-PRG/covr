@@ -85,8 +85,9 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
   }
 
   fun <- as.character(x[[1]])
-  if ((startsWith(fun, "%") && endsWith(fun, "%")) ||
-        fun %in% c("~", "~", "+", "-", "*", "/", "^", "<", ">", "<=", ">=", "==", "&", "&&", "|", "||", "$", "[", "[[")) {
+  if ((fun %in% c("~", "~", "+", "-", "*", "/", "^", "<", ">", "<=",
+                 ">=", "==", "&", "&&", "|", "||", "$", "[", "[[")) ||
+        (startsWith(fun, "%") && endsWith(fun, "%"))) {
     if (length(x) == 3) {
       x[[2]] <- impute_srcref_ast(x[[2]], make_srcref(1))
       x[[3]] <- impute_srcref_ast(x[[3]], make_srcref(3))
@@ -98,7 +99,6 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
   } else if (fun == "->") {
     x[[2]] <- impute_srcref_ast(x[[2]], make_srcref(1))
   } else if (fun == "if") {
-    refs <- list(NULL)
     cond_srcref <- make_srcref(3)
     x[[2]] <- impute_srcref_ast(x[[2]], cond_srcref)
 
@@ -110,6 +110,9 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
       x[[4]] <- impute_srcref_ast(x[[4]], ref)
       ref
     } else {
+      tmp <- as.call(c(as.list(x), list(NULL)))
+      attributes(tmp) <- attributes(x)
+      x <- tmp
       make_default_branch_srcref()
     }
 
@@ -122,7 +125,11 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
     stopifnot(FALSE)
   } else if (fun == "function") {
     # update formals
-    args <- which(sapply(x[[2]], function(y) !is.symbol(y) || as.character(y) != ""))
+    args <- if (!is.null(x[[2]])) {
+      which(sapply(x[[2]], function(y) !is.symbol(y) || as.character(y) != ""))
+    } else {
+      integer(0)
+    }
     srcrefs <- which(pd_child$token == "expr")
 
     stopifnot(length(args) == length(srcrefs) - 1)
