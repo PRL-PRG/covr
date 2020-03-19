@@ -21,13 +21,21 @@ SEXP covr_reassign_function(SEXP name, SEXP env, SEXP old_fun, SEXP new_fun) {
 
 SEXP covr_duplicate_(SEXP x) { return duplicate(x); }
 
+SEXP covr_sexp_address(SEXP s) {
+  char address[16];
+  sprintf(address, "%p", (void *) s);
+  return mkString(address);
+}
+
 /* .Call calls */
 extern SEXP covr_duplicate_(SEXP);
 extern SEXP covr_reassign_function(SEXP, SEXP, SEXP, SEXP);
+extern SEXP covr_sexp_address(SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
     {"covr_duplicate_", (DL_FUNC)&covr_duplicate_, 1},
     {"covr_reassign_function", (DL_FUNC)&covr_reassign_function, 4},
+    {"covr_sexp_address", (DL_FUNC)&covr_sexp_address, 1},
     {NULL, NULL, 0}};
 
 void R_init_covr(DllInfo *dll) {

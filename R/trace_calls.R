@@ -12,10 +12,20 @@
 trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
 
   # Construct the calls by hand to avoid a NOTE from R CMD check
-  count <- function(key, val) {
+  count <- function(parent_ref, parent_functions, val) {
+    is_branch <- isTRUE(attr(parent_ref, "default_branch"))
+
+    key <- if (is_branch) {
+      new_branch(parent_ref, parent_functions)
+    } else {
+      new_counter(parent_ref, parent_functions)
+    }
+
+    count_fun <- if (is_branch) "count_branch" else "count"
+
     call("if", TRUE,
       call("{",
-        as.call(list(call(":::", as.symbol("covr"), as.symbol("count")), key)),
+        as.call(list(call(":::", as.symbol("covr"), as.symbol(count_fun)), key)),
         val
       )
     )
@@ -36,29 +46,18 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
       if (is_na(x) || is_brace(x)) {
         x
       } else {
-        key <- new_counter(parent_ref, parent_functions) # nolint
-        count(key, x)
+        count(parent_ref, parent_functions, x)
       }
     }
   }
   else if (is.call(x)) {
-    src_ref <- attr(x, "srcref") # %||% impute_srcref(x, parent_ref)
+    src_ref <- attr(x, "srcref")
     ## `src_ref` also identifies branches for R control structures (for , if,
     ## switch and while). This information is only need here to include the
     ## given srcref into the global .branches environment.
     for (i in seq_along(src_ref)) {
-      branch <- attr(src_ref[[i]], "branch")
-      if (!is.null(branch)) {
-        attr(src_ref[[i]], "branch") <- NULL
-        if (branch > 0) {
+      if (isTRUE(attr(src_ref[[i]], "branch"))) {
           new_branch(src_ref[[i]], parent_functions)
-          if (branch == 2 && identical(x[[1]], as.name("if"))) {
-            tmp <- as.call(c(as.list(x), list(NULL)))
-            attributes(tmp) <- attributes(x)
-            x <- tmp
-            browser()
-          }
-        }
       }
     }
 
@@ -73,8 +72,7 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
     } else if (!is.null(src_ref)) {
       as.call(Map(trace_calls, x, src_ref, MoreArgs = list(parent_functions = parent_functions)))
     } else if (!is.null(parent_ref)) {
-      key <- new_counter(parent_ref, parent_functions)
-      count(key, as.call(recurse(x)))
+      count(parent_ref, parent_functions, as.call(recurse(x)))
     } else {
       as.call(recurse(x))
     }
@@ -102,8 +100,7 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
           (is.symbol(fun_body) ||
              !(identical(fun_body[[1]], as.name("{")) ||
                  is_conditional_or_loop(fun_body)))) {
-      key <- new_counter(src_ref, parent_functions)
-      fun_body <- count(key, trace_calls(fun_body, parent_functions))
+      fun_body <- count(src_ref, parent_functions, trace_calls(fun_body, parent_functions))
     } else {
       fun_body <- trace_calls(fun_body, parent_functions)
     }
@@ -128,6 +125,10 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
       call. = FALSE)
     x
   }
+}
+
+is_phony <- function(srcref) {
+  srcref[5]-1 == srcref[6]
 }
 
 .counters <- new.env(parent = emptyenv())
@@ -165,6 +166,22 @@ new_counter <- function(src_ref, parent_functions) {
 #' @keywords internal
 count <- function(key) {
   .counters[[key]]$value <- .counters[[key]]$value + 1
+}
+
+#' increment a given branch counter (used for implicit branches)
+#'
+#' @param key generated with [key()]
+#' @keywords internal
+count_branch <- function(key) {
+  .branches[[key]]$value <- 1
+}
+
+#' checks if the given counter has been hit
+#'
+#' @param key generated with [key()]
+#' @keywords internal
+hit <- function(key) {
+  .counters[[key]]$value > 0
 }
 
 #' clear all previous counters

@@ -36,56 +36,59 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
     line_offset <- 0
   }
 
-  make_srcref <- function(from, to = from) {
+  make_srcref <- function(from, to = from, pd=pd_child) {
     if (length(from) == 0) {
       return(NULL)
     }
 
     srcref(
       attr(parent_ref, "srcfile"),
-      c(pd_child$line1[from] - line_offset,
-        pd_child$col1[from],
-        pd_child$line2[to] - line_offset,
-        pd_child$col2[to],
-        pd_child$col1[from],
-        pd_child$col2[to],
-        pd_child$line1[from],
-        pd_child$line2[to]
+      c(pd$line1[from] - line_offset,
+        pd$col1[from],
+        pd$line2[to] - line_offset,
+        pd$col2[to],
+        pd$col1[from],
+        pd$col2[to],
+        pd$line1[from],
+        pd$line2[to]
       )
     )
   }
 
   make_branch_srcref <- function(from) {
     ref <- make_srcref(from)
-    attr(ref, "branch") <- 1
+    attr(ref, "branch") <- TRUE
     ref
   }
 
   make_default_branch_srcref <- function() {
-    last_expr <- pd_child[nrow(pd_child), ]
-
-    outer_scope_id <- pd$parent[pd_expr_idx]
-    outer_scope <- pd[pd$id == outer_scope_id, ]
-
-    ref <- srcref(
-      attr(parent_ref, "srcfile"),
-      c(last_expr$line2,
-        last_expr$col2 + 1,
-        outer_scope$line2,
-        outer_scope$col2,
-        last_expr$col2 + 1,
-        outer_scope$col2,
-        last_expr$line2,
-        outer_scope$line2
-        )
+    ref <- make_srcref(nrow(pd_child))
+    attr(ref, "default_branch") <- TRUE
+    ref[1:8] <- c(
+      ref[3L],
+      ref[6L] + 1,
+      ref[3L],
+      ref[6L],
+      ref[6L] + 1,
+      ref[6L],
+      ref[3L],
+      ref[3L]
     )
-
-    attr(ref, "branch") <- 2
     ref
   }
 
+  find_first_counter_srcref <- function(r) {
+    if (is.list(r)) {
+      non_empty <- Filter(function(x) !is.null(x), r)
+      find_first_counter_srcref(non_empty[[1]])
+    } else {
+      r
+    }
+  }
+
   fun <- as.character(x[[1]])
-  if ((fun %in% c("~", "~", "+", "-", "*", "/", "^", "<", ">", "<=",
+
+  if ((fun %in% c("!", "~", "~", "+", "-", "*", "/", "^", "<", ">", "<=",
                  ">=", "==", "&", "&&", "|", "||", "$", "[", "[[")) ||
         (startsWith(fun, "%") && endsWith(fun, "%"))) {
     if (length(x) == 3) {
@@ -116,15 +119,47 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
       make_default_branch_srcref()
     }
 
-    attr(x, "srcref") <- list(NULL, cond_srcref, then_srcref, else_srcref)
+    refs <- list(NULL, cond_srcref, then_srcref, else_srcref)
+    attr(x, "srcref") <- refs
   } else if (fun == "for") {
-    stopifnot(FALSE)
+    cond_srcref <- {
+      forcond_id <- pd_child$id[2]
+      pd_expr <- pd[pd$parent==forcond_id & pd$token=="expr", ]
+      stopifnot(nrow(pd_expr) == 1)
+      make_srcref(1, pd=pd_expr)
+    }
+    body_srcref <- make_branch_srcref(3)
+
+    x[[3]] <- impute_srcref_ast(x[[3]], cond_srcref)
+    x[[4]] <- impute_srcref_ast(x[[4]], body_srcref)
+    attr(x, "srcref") <- list(NULL, NULL, cond_srcref, body_srcref)
+
+    tmp <- attr(x[[4]], "srcref")
+    if (!is.null(tmp)) {
+      body_srcref <- tmp
+    }
+
+    # for this to work, the essential is to find the first and the last
+    # expression the first one is used to find out if the loop body was executed
+    # or not, and the last one to find out what should be the source reference
+    # of the implicit other branch.
+
+    first_body_srcref <- find_first_counter_srcref(body_srcref)
+
+    check_default_branch <- substitute(
+      if (!covr::hit(REF)) NULL,
+      list(REF=key(first_body_srcref))
+    )
+
+    attr(check_default_branch, "srcref") <- list(NULL, NULL, make_default_branch_srcref())
+
+    x <- call("{", x, check_default_branch)
   } else if (fun == "while") {
     stopifnot(FALSE)
   } else if (fun == "switch") {
     stopifnot(FALSE)
   } else if (fun == "function") {
-    # update formals
+    # first update formals
     args <- if (!is.null(x[[2]])) {
       which(sapply(x[[2]], function(y) !is.symbol(y) || as.character(y) != ""))
     } else {
@@ -139,9 +174,10 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
       x[[2]][[arg]] <- impute_srcref_ast(x[[2]][[arg]], make_srcref(srcrefs[i]))
     }
 
-    # update body
+    # then update body
     x[[3]] <- impute_srcref_ast(x[[3]], make_srcref(nrow(pd_child)))
   } else if (fun == "{") {
+    # TODO: add NULL for srcref of { itself
     refs <- attr(x, "srcref")
     stopifnot(length(x) == length(refs))
     for (i in seq_along(x)[-1]) {

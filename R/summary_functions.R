@@ -150,7 +150,7 @@ srcref_contains <- function (br_srcref, expr_srcref) {
   expr_ln2 <- s2[[3L]]
   expr_col2 <- s2[[6L]]
 
-  if (expr_col1 > expr_col2) {
+  if (is_phony(expr_srcref)) {
     # this is the case of an expression that was injected at the end of
     # an implicit other branch in `if (...) X`
     br_ln1 == expr_ln1 && br_col1 == expr_col1 &&
@@ -190,7 +190,6 @@ tally_branch_coverage <- function (x) {
 
   if(length(branches) != 0) {
     df <- as.data.frame(branches)
-    df[order(df$first_line, df$first_byte), ]
   } else {
     as.data.frame(unclass(branches))
   }
