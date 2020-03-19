@@ -278,14 +278,14 @@ print_branch_coverage <- function(x, group = c("filename", "functions")) {
 
   pair <- tally_branch_coverage(x)
   df_br <- pair[[1]]
-  branches <- pair[[2]]
+  br_coverage <- pair[[2]]
 
   for(i in seq_along(branches)) {
-    attr(x, "branches")[[i]]$value <- branches[[i]]$value
+    attr(x, "branches")[[i]]$value <- br_coverage[[i]]$value
   }
 
   filenames <- display_name(x)
-  br_filenames <- display_name(branches)
+  br_filenames <- display_name(branches_coverage)
   no_branch <- unique(filenames[!(filenames %in% br_filenames)])
 
   if(dim(df_br)[1] == 0 & dim(df_br)[2] == 0) {
