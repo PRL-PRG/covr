@@ -11,7 +11,7 @@ test_that("empty_function", {
     df <- tally_branch_coverage(cc)
 
     ## there shall be no branch
-    expect_equal(nrow(df), 0)
+    expect_equal(nrow(df[[1]]), 0)
 })
 
 test_that("no_branch", {
@@ -26,7 +26,7 @@ test_that("no_branch", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be no branch
-  expect_equal(nrow(df), 0)
+  expect_equal(nrow(df[[1]]), 0)
 })
 
 test_that("many_branches", {
@@ -65,9 +65,9 @@ test_that("many_branches", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be ten branches
-  expect_equal(nrow(df), 10)
+  expect_equal(nrow(df[[1]]), 10)
   ## five of which are executed
-  expect_equal(sum(df$value), 5)
+  expect_equal(sum(df[[1]]$value), 5)
 })
 
 test_that("app_in_branch1", {
@@ -86,9 +86,9 @@ test_that("app_in_branch1", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be two branches
-  expect_equal(nrow(df), 2)
+  expect_equal(nrow(df[[1]]), 2)
   ## one of which is executed
-  expect_equal(sum(df$value), 1)
+  expect_equal(sum(df[[1]]$value), 1)
 })
 
 test_that("app_in_branch2", {
@@ -107,9 +107,9 @@ test_that("app_in_branch2", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be four branches
-  expect_equal(nrow(df), 4)
+  expect_equal(nrow(df[[1]]), 4)
   ## two of which is executed
-  expect_equal(sum(df$value), 2)
+  expect_equal(sum(df[[1]]$value), 2)
 })
 
 test_that("if_syntax_variation1", {
@@ -128,9 +128,9 @@ test_that("if_syntax_variation1", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be two branches
-  expect_equal(nrow(df), 2)
+  expect_equal(nrow(df[[1]]), 2)
   ## but only one gets value 1
-  expect_equal(sum(df$value), 1)
+  expect_equal(sum(df[[1]]$value), 1)
 })
 
 test_that("if_syntax_variation2", {
@@ -144,9 +144,9 @@ test_that("if_syntax_variation2", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be two branches
-  expect_equal(nrow(df), 2)
+  expect_equal(nrow(df[[1]]), 2)
   ## but only one gets value 1
-  expect_equal(sum(df$value), 1)
+  expect_equal(sum(df[[1]]$value), 1)
 })
 
 test_that("if_syntax_variation3", {
@@ -160,9 +160,9 @@ test_that("if_syntax_variation3", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be two branches
-  expect_equal(nrow(df), 2)
+  expect_equal(nrow(df[[1]]), 2)
   ## but only one gets value 1
-  expect_equal(sum(df$value), 1)
+  expect_equal(sum(df[[1]]$value), 1)
 })
 
 test_that("if_syntax_variation3", {
@@ -183,9 +183,9 @@ if (x > 0) {
   df <- tally_branch_coverage(cc)
 
   ## there shall be four branches
-  expect_equal(nrow(df), 4)
+  expect_equal(nrow(df[[1]]), 4)
   ## two of which are executed
-  expect_equal(sum(df$value), 2)
+  expect_equal(sum(df[[1]]$value), 2)
 })
 
 test_that("if_syntax_variation4", {
@@ -215,9 +215,9 @@ test_that("if_syntax_variation4", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be four branches
-  expect_equal(nrow(df), 4)
+  expect_equal(nrow(df[[1]]), 4)
   ## two of which are executed
-  expect_equal(sum(df$value), 2)
+  expect_equal(sum(df[[1]]$value), 2)
 })
 
 test_that("multiple_files1", {
@@ -252,9 +252,9 @@ test_that("multiple_files1", {
     df <- tally_branch_coverage(cc)
 
     ## there shall be three branches
-    expect_equal(nrow(df), 3)
+    expect_equal(nrow(df[[1]]), 3)
     ## three of which are executed
-    expect_equal(sum(df$value), 1)
+    expect_equal(sum(df[[1]]$value), 1)
 })
 
 test_that("multiple_files2", {
@@ -310,9 +310,9 @@ test_that("multiple_files2", {
     df <- tally_branch_coverage(cc)
 
     ## there shall be two branches
-    expect_equal(nrow(df), 13)
+    expect_equal(nrow(df[[1]]), 13)
     ## five of which are executed
-    expect_equal(sum(df$value), 5)
+    expect_equal(sum(df[[1]]$value), 5)
 })
 
 test_that("multiple_files3", {
@@ -368,9 +368,9 @@ test_that("multiple_files3", {
     df <- tally_branch_coverage(cc)
 
     ## there shall be two branches
-    expect_equal(nrow(df), 13)
+    expect_equal(nrow(df[[1]]), 13)
     ## three of which are executed
-    expect_equal(sum(df$value), 3)
+    expect_equal(sum(df[[1]]$value), 3)
 })
 
 test_that("no_else1", {
@@ -385,9 +385,9 @@ test_that("no_else1", {
     df <- tally_branch_coverage(cc)
 
     ## there shall be one branch
-    expect_equal(nrow(df), 1)
+    expect_equal(nrow(df[[1]]), 1)
     ## one of which is executed
-    expect_equal(sum(df$value), 1)
+    expect_equal(sum(df[[1]]$value), 1)
 })
 
 test_that("no_else2", {
@@ -402,9 +402,9 @@ test_that("no_else2", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be one branch
-  expect_equal(nrow(df), 1)
+  expect_equal(nrow(df[[1]]), 1)
   ## none of which is executed
-  expect_equal(sum(df$value), 0)
+  expect_equal(sum(df[[1]]$value), 0)
 })
 
 test_that("no_else_nested1", {
@@ -424,9 +424,9 @@ test_that("no_else_nested1", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be three branches
-  expect_equal(nrow(df), 3)
+  expect_equal(nrow(df[[1]]), 3)
   ## two of which are executed
-  expect_equal(sum(df$value), 2)
+  expect_equal(sum(df[[1]]$value), 2)
 })
 
 test_that("no_else_nested2", {
@@ -446,9 +446,9 @@ test_that("no_else_nested2", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be three branch
-  expect_equal(nrow(df), 3)
+  expect_equal(nrow(df[[1]]), 3)
   ## one of which is executed
-  expect_equal(sum(df$value), 1)
+  expect_equal(sum(df[[1]]$value), 1)
 })
 
 test_that("no_else_nested3", {
@@ -468,9 +468,9 @@ test_that("no_else_nested3", {
   df <- tally_branch_coverage(cc)
 
   ## there shall be three branch
-  expect_equal(nrow(df), 3)
+  expect_equal(nrow(df[[1]]), 3)
   ## none of which is executed
-  expect_equal(sum(df$value), 0)
+  expect_equal(sum(df[[1]]$value), 0)
 })
 
 #######################################################
@@ -490,10 +490,10 @@ test_that("simple", {
     df <- tally_branch_coverage(cc)
 
     #there shall be one branch
-    expect_equal(nrow(df), 1)
+    expect_equal(nrow(df[[1]]), 1)
 
     # 100%
-    expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
+    expect_equal((sum(df[[1]]$value > 0) / length(df[[1]]$value)) * 100, 100)
 })
 
 test_that("nested-while", {
@@ -513,10 +513,10 @@ test_that("nested-while", {
   df <- tally_branch_coverage(cc)
 
   # there shall be two branches
-  expect_equal(nrow(df), 2)
+  expect_equal(nrow(df[[1]]), 2)
 
   # 50%
-  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
+  expect_equal((sum(df[[1]]$value > 0) / length(df[[1]]$value)) * 100, 50)
 })
 
 test_that("one-line-while", {
@@ -530,10 +530,10 @@ test_that("one-line-while", {
   df <- tally_branch_coverage(cc)
 
   # there shall be one branch
-  expect_equal(nrow(df), 1)
+  expect_equal(nrow(df[[1]]), 1)
 
   # 100%
-  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
+  expect_equal((sum(df[[1]]$value > 0) / length(df[[1]]$value)) * 100, 100)
 })
 
 test_that("while-if-mix", {
@@ -547,10 +547,10 @@ test_that("while-if-mix", {
   df <- tally_branch_coverage(cc)
 
   # there shall be two branches
-  expect_equal(nrow(df), 2)
+  expect_equal(nrow(df[[1]]), 2)
 
   # 50%
-  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
+  expect_equal((sum(df[[1]]$value > 0) / length(df[[1]]$value)) * 100, 50)
 })
 
 test_that("if-while-mix", {
@@ -570,10 +570,10 @@ test_that("if-while-mix", {
   df <- tally_branch_coverage(cc)
 
   # there shall be one branch
-  expect_equal(nrow(df), 4)
+  expect_equal(nrow(df[[1]]), 4)
 
   # 50%
-  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
+  expect_equal((sum(df[[1]]$value > 0) / length(df[[1]]$value)) * 100, 50)
 })
 
 #######################################################
@@ -593,10 +593,10 @@ test_that("non-interative", {
   df <- tally_branch_coverage(cc)
 
   # there shall be one branch
-  expect_equal(nrow(df), 1)
+  expect_equal(nrow(df[[1]]), 1)
 
   ## 0%
-  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 0)
+  expect_equal((sum(df[[1]]$value > 0) / length(df[[1]]$value)) * 100, 0)
 })
 
 test_that("simple", {
@@ -612,10 +612,10 @@ test_that("simple", {
   df <- tally_branch_coverage(cc)
 
   # there shall be one branch
-  expect_equal(nrow(df), 1)
+  expect_equal(nrow(df[[1]]), 1)
 
   ## 0%
-  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
+  expect_equal((sum(df[[1]]$value > 0) / length(df[[1]]$value)) * 100, 100)
 })
 
 test_that("nested", {
@@ -634,10 +634,10 @@ test_that("nested", {
   df <- tally_branch_coverage(cc)
 
   # there shall be two branches
-  expect_equal(nrow(df), 2)
+  expect_equal(nrow(df[[1]]), 2)
 
   ## 0%
-  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
+  expect_equal((sum(df[[1]]$value > 0) / length(df[[1]]$value)) * 100, 100)
 })
 
 test_that("nested", {
@@ -657,10 +657,10 @@ test_that("nested", {
   df <- tally_branch_coverage(cc)
 
   # there shall be two branches
-  expect_equal(nrow(df), 2)
+  expect_equal(nrow(df[[1]]), 2)
 
   ## 50%
-  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
+  expect_equal((sum(df[[1]]$value > 0) / length(df[[1]]$value)) * 100, 50)
 })
 
 test_that("one_line_for", {
@@ -676,10 +676,10 @@ test_that("one_line_for", {
   df <- tally_branch_coverage(cc)
 
   #there shall be two branches
-  expect_equal(nrow(df), 2)
+  expect_equal(nrow(df[[1]]), 2)
 
   ## 50%
-  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
+  expect_equal((sum(df[[1]]$value > 0) / length(df[[1]]$value)) * 100, 100)
 })
 
 #######################################################
@@ -699,10 +699,10 @@ test_that("simple_switch", {
   df <- tally_branch_coverage(cc)
 
   #there shall be three branches
-  expect_equal(nrow(df), 3)
+  expect_equal(nrow(df[[1]]), 3)
 
   ## one of which is executed
-  expect_equal(sum(df$value), 1)
+  expect_equal(sum(df[[1]]$value), 1)
 })
 
 test_that("if_switch_mix", {
@@ -724,8 +724,8 @@ test_that("if_switch_mix", {
   df <- tally_branch_coverage(cc)
 
   #there shall be five branches
-  expect_equal(nrow(df), 5)
+  expect_equal(nrow(df[[1]]), 5)
 
   ## one of which is executed
-  expect_equal(sum(df$value), 1)
+  expect_equal(sum(df[[1]]$value), 1)
 })

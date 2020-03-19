@@ -154,38 +154,40 @@ srcref_contains <- function (br_srcref, exp_srcref) {
     (br_ln2 > exp_ln2 | (br_ln2 == exp_ln2 & br_col2 >= exp_col2))
 }
 
-branch_coverage <- function (x) {
-  br_c <- structure(attr(x, "branches"),
-                    relative = attr(x, "relative"),
-                    package = attr(x, "package"),
-                    class = "coverage")
-  br_c
-}
-
 #' Tally branch coverage
 #'
 #' @inheritParams print_branch_coverage
-#' @return a `data.frame` of branch coverage 
+#' @return a list of `data.frame` of branch coverage and branches
 #' @export
 tally_branch_coverage <- function (x) {
-  br_c <- branch_coverage(x)
-
   covered_exp <- Filter(function(x) x$value > 0, x)
+  branches <- attr(x, "branches")
 
-  for(exp in covered_exp) {
-    for (i in seq_along(br_c)) {
-      sameFile <- (getSrcFilename(exp$srcref) == getSrcFilename(br_c[[i]]$srcref))
-      if (!isTRUE(br_c[[i]]$value) & sameFile) {
-        if(srcref_contains(br_c[[i]]$srcref, exp$srcref))
-        br_c[[i]]$value <- exp$value
+  class(branches) <- "coverage"
+
+  if(length(branches) == 0) {
+    list(data.frame(), branches)
+  } else {
+    for(exp in covered_exp) {
+      for (i in seq_along(branches)) {
+        sameFile <- (getSrcFilename(exp$srcref) == getSrcFilename(branches[[i]]$srcref))
+        if (branches[[i]]$value == 0 & sameFile) {
+          if(srcref_contains(branches[[i]]$srcref, exp$srcref)) {
+            branches[[i]]$value <- exp$value
+          }
+        }
       }
     }
-  }
 
-  if(length(br_c) != 0) {
-    as.data.frame(br_c)
-  } else {
-    as.data.frame(unclass(br_c))
+    attr(branches, "relative") <- attr(x, "relative")
+    attr(branches, "package") <- attr(x, "package")
+
+    if (length(branches) != 0) {
+      df_br <- as.data.frame(branches)
+      list(df_br, branches)
+    } else {
+      as.data.frame(unclass(branches))
+    }
   }
 }
 
@@ -234,9 +236,9 @@ print.coverage <- function(x, group = c("filename", "functions"), by = "line", i
 
   if (isTRUE(include_branches)) {
     print_branch_coverage(x, group=group)
+  } else {
+    invisible(x)
   }
-
-  invisible(x)
 }
 
 #' @export
@@ -274,11 +276,16 @@ print.coverages <- function(x, ...) {
 print_branch_coverage <- function(x, group = c("filename", "functions")) {
   stopifnot(inherits(x, "coverage"))
 
-  df_br <- tally_branch_coverage(x)
+  pair <- tally_branch_coverage(x)
+  df_br <- pair[[1]]
+  branches <- pair[[2]]
 
-  br_c <- branch_coverage(x)
+  for(i in seq_along(branches)) {
+    attr(x, "branches")[[i]]$value <- branches[[i]]$value
+  }
+
   filenames <- display_name(x)
-  br_filenames <- display_name(br_c)
+  br_filenames <- display_name(branches)
   no_branch <- unique(filenames[!(filenames %in% br_filenames)])
 
   if(dim(df_br)[1] == 0 & dim(df_br)[2] == 0) {
