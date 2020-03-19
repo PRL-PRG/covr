@@ -62,7 +62,7 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
   }
 
   make_default_branch_srcref <- function() {
-    ref <- make_srcref(nrow(pd_child))
+    ref <- make_branch_srcref(nrow(pd_child))
     attr(ref, "default_branch") <- TRUE
     ref[1:8] <- c(
       ref[3L],
@@ -77,13 +77,8 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
     ref
   }
 
-  find_first_counter_srcref <- function(r) {
-    if (is.list(r)) {
-      non_empty <- Filter(function(x) !is.null(x), r)
-      find_first_counter_srcref(non_empty[[1]])
-    } else {
-      r
-    }
+  make_count_branch_call <- function(srcref) {
+    call("{", as.call(list(call(":::", as.symbol("covr"), as.symbol("count_branch")), key(srcref))), NULL)
   }
 
   fun <- as.character(x[[1]])
@@ -113,47 +108,57 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
       x[[4]] <- impute_srcref_ast(x[[4]], ref)
       ref
     } else {
-      tmp <- as.call(c(as.list(x), list(NULL)))
+      ref <- make_default_branch_srcref()
+      tmp <- as.call(c(as.list(x), make_count_branch_call(ref)))
       attributes(tmp) <- attributes(x)
       x <- tmp
-      make_default_branch_srcref()
+      ref
     }
 
-    refs <- list(NULL, cond_srcref, then_srcref, else_srcref)
-    attr(x, "srcref") <- refs
+    attr(x, "srcref") <- list(NULL, cond_srcref, then_srcref, else_srcref)
   } else if (fun == "for") {
+    # for parsing data contain 3 elements: FOR, forcond and expr for body
+    # the forconf contains: symbol, in and the ectual expression which
+    # want to include for the coverage
     cond_srcref <- {
       forcond_id <- pd_child$id[2]
       pd_expr <- pd[pd$parent==forcond_id & pd$token=="expr", ]
+
       stopifnot(nrow(pd_expr) == 1)
+
       make_srcref(1, pd=pd_expr)
     }
+    
     body_srcref <- make_branch_srcref(3)
 
     x[[3]] <- impute_srcref_ast(x[[3]], cond_srcref)
     x[[4]] <- impute_srcref_ast(x[[4]], body_srcref)
-    attr(x, "srcref") <- list(NULL, NULL, cond_srcref, body_srcref)
 
+    # TODO: why?
     tmp <- attr(x[[4]], "srcref")
     if (!is.null(tmp)) {
       body_srcref <- tmp
+      attr(body_srcref, "branch") <- TRUE
     }
 
-    # for this to work, the essential is to find the first and the last
-    # expression the first one is used to find out if the loop body was executed
-    # or not, and the last one to find out what should be the source reference
-    # of the implicit other branch.
+    default_branch_srcref <- make_default_branch_srcref()
 
-    first_body_srcref <- find_first_counter_srcref(body_srcref)
+    branch_guard_var <- as.name(paste0("__", .Call(covr_sexp_address, x)))
+    branch_guard_expr <- call("<-", branch_guard_var, TRUE)
+    branch_check_expr <-
+      call("if",
+           call("!", call("exists", as.character(branch_guard_var), inherits=FALSE)),
+           make_count_branch_call(default_branch_srcref)
+      )
 
-    check_default_branch <- substitute(
-      if (!covr::hit(REF)) NULL,
-      list(REF=key(first_body_srcref))
-    )
+    x[[4]] <- call("{", branch_guard_expr, x[[4]])
+    attr(x[[4]], "srcref") <- list(NULL, NULL, body_srcref)
 
-    attr(check_default_branch, "srcref") <- list(NULL, NULL, make_default_branch_srcref())
+    # remove the body srcref from body position as it has its own set above
+    attr(x, "srcref") <- list(NULL, NULL, cond_srcref, NULL)
 
-    x <- call("{", x, check_default_branch)
+    x <- call("{", x, branch_check_expr)
+    attr(x, "srcref") <- list(NULL, NULL, default_branch_srcref)
   } else if (fun == "while") {
     stopifnot(FALSE)
   } else if (fun == "switch") {

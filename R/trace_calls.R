@@ -12,20 +12,10 @@
 trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
 
   # Construct the calls by hand to avoid a NOTE from R CMD check
-  count <- function(parent_ref, parent_functions, val) {
-    is_branch <- isTRUE(attr(parent_ref, "default_branch"))
-
-    key <- if (is_branch) {
-      new_branch(parent_ref, parent_functions)
-    } else {
-      new_counter(parent_ref, parent_functions)
-    }
-
-    count_fun <- if (is_branch) "count_branch" else "count"
-
+  count <- function(key, val) {
     call("if", TRUE,
       call("{",
-        as.call(list(call(":::", as.symbol("covr"), as.symbol(count_fun)), key)),
+        as.call(list(call(":::", as.symbol("covr"), as.symbol("count")), key)),
         val
       )
     )
@@ -46,7 +36,8 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
       if (is_na(x) || is_brace(x)) {
         x
       } else {
-        count(parent_ref, parent_functions, x)
+        key <- new_counter(parent_ref, parent_functions) # nolint
+        count(key, x)
       }
     }
   }
@@ -57,7 +48,10 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
     ## given srcref into the global .branches environment.
     for (i in seq_along(src_ref)) {
       if (isTRUE(attr(src_ref[[i]], "branch"))) {
-          new_branch(src_ref[[i]], parent_functions)
+        new_branch(src_ref[[i]], parent_functions)
+      }
+      if (isTRUE(attr(src_ref[[i]], "default_branch"))) {
+        src_ref[i] <- list(NULL)
       }
     }
 
@@ -72,7 +66,8 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
     } else if (!is.null(src_ref)) {
       as.call(Map(trace_calls, x, src_ref, MoreArgs = list(parent_functions = parent_functions)))
     } else if (!is.null(parent_ref)) {
-      count(parent_ref, parent_functions, as.call(recurse(x)))
+      key <- new_counter(parent_ref, parent_functions)
+      count(key, as.call(recurse(x)))
     } else {
       as.call(recurse(x))
     }
@@ -174,14 +169,6 @@ count <- function(key) {
 #' @keywords internal
 count_branch <- function(key) {
   .branches[[key]]$value <- 1
-}
-
-#' checks if the given counter has been hit
-#'
-#' @param key generated with [key()]
-#' @keywords internal
-hit <- function(key) {
-  .counters[[key]]$value > 0
 }
 
 #' clear all previous counters

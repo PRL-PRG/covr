@@ -83,7 +83,6 @@ test_that("for loop with nested if in cond", {
   expect_equal(cc$branches$value, c(1, 0, 1, 0))
 
   cc <- do_code_coverage(code, "f(FALSE);f(TRUE)")
-  browser()
   expect_equal(cc$counters, c("!x", "1", "i"))
   expect_equal(cc$expressions$value, c(2, 1, 1))
   expect_equal(cc$branches$value, c(1, 1, 1, 1))
