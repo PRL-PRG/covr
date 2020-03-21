@@ -1,5 +1,32 @@
+# This function inserts into existing code explicit branch counting code.
+#
+# Each branch will be wrapped into
+# { if (TRUE) { count_branch(branch_id); NULL}; original_branch }
+
+# For example:
+#
+# function(x) if (x) 1 else 2
+#
+# will be turned into:
+#
+# function(x) {
+#   if (x) {
+#     if (TRUE) {
+#       covr:::count_branch("source.R1920f6bb5ecd8:1:18:1:32:18:32:1:1-1")
+#       NULL
+#     }
+#     1
+#   } else {
+#     if (TRUE) {
+#       covr:::count_branch("source.R1920f6bb5ecd8:1:18:1:32:18:32:1:1-2")
+#       NULL
+#      }
+#      2
+#   }
+# }
+#
 #' @importFrom utils getParseData getSrcref tail
-impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
+impute_branches <- function(x, parent_ref, parent_functions) {
   if (is.null(parent_ref)) return(x)
   if (!is.call(x)) return(x)
 
@@ -77,42 +104,75 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
     ref
   }
 
-  make_count_branch_call <- function(srcref) {
-    call("{", as.call(list(call(":::", as.symbol("covr"), as.symbol("count_branch")), key(srcref))), NULL)
+  count_branch_call <- function(key) {
+    call("if", TRUE,
+         call("{",
+              as.call(list(call(":::", as.symbol("covr"), as.symbol("count_branch")), key)),
+              NULL))
   }
 
-  fun <- as.character(x[[1]])
+  fun <- as.character(x[[1]])[1]
 
   if ((fun %in% c("!", "~", "~", "+", "-", "*", "/", "^", "<", ">", "<=",
                  ">=", "==", "&", "&&", "|", "||", "$", "[", "[[")) ||
         (startsWith(fun, "%") && endsWith(fun, "%"))) {
     if (length(x) == 3) {
-      x[[2]] <- impute_srcref_ast(x[[2]], make_srcref(1))
-      x[[3]] <- impute_srcref_ast(x[[3]], make_srcref(3))
+      if (!is.null(x[[2]]))
+        x[[2]] <- impute_branches(x[[2]], make_srcref(1), parent_functions)
+      if (!is.null(x[[3]]))
+        x[[3]] <- impute_branches(x[[3]], make_srcref(3), parent_functions)
     } else {
-      x[[1]] <- impute_srcref_ast(x[[1]], make_srcref(2))
+      if (!is.null(x[[1]]))
+        x[[1]] <- impute_branches(x[[1]], make_srcref(2), parent_functions)
     }
+  } else if (fun %in% c("::", ":::")) {
+    x
   } else if (fun == "<-" || fun == "=") {
-    x[[3]] <- impute_srcref_ast(x[[3]], make_srcref(3))
+    if (!is.null(x[[3]]))
+      x[[3]] <- impute_branches(x[[3]], make_srcref(3), parent_functions)
   } else if (fun == "->") {
-    x[[2]] <- impute_srcref_ast(x[[2]], make_srcref(1))
+    if (!is.null(x[[2]]))
+      x[[2]] <- impute_branches(x[[2]], make_srcref(1), parent_functions)
   } else if (fun == "if") {
+    # expression:
+    # IF cond then_branch else_branch
+    # parse data:
+    # IF ( cond ) then_branch ELSE else_branch
+    # 1  2 3    4 5           6    7
     cond_srcref <- make_srcref(3)
-    x[[2]] <- impute_srcref_ast(x[[2]], cond_srcref)
+    # here it is safe as condition cannot be NULL
+    x[[2]] <- impute_branches(x[[2]], cond_srcref, parent_functions)
 
+    # process THEN branch
     then_srcref <- make_branch_srcref(5)
-    x[[3]] <- impute_srcref_ast(x[[3]], then_srcref)
+    then_branch <- new_branch(then_srcref, parent_functions, parent_ref, FALSE)
 
+    if (!is.null(x[[3]]))
+      x[[3]] <- impute_branches(x[[3]], then_srcref, parent_functions)
+
+    x[[3]] <- call("{", count_branch_call(then_branch), x[[3]])
+    attr(x[[3]], "srcref") <- list(NULL, NULL, then_srcref)
+
+    # process ELSE branch
     else_srcref <- if (length(x) == 4) {
-      ref <- make_branch_srcref(7)
-      x[[4]] <- impute_srcref_ast(x[[4]], ref)
-      ref
+      else_srcref <- make_branch_srcref(7)
+      else_branch <- new_branch(else_srcref, parent_functions, parent_ref, FALSE)
+
+      if (!is.null(x[[4]]))
+        impute_branches(x[[4]], else_srcref, parent_functions)
+
+      x[[4]] <- call("{", count_branch_call(else_branch), x[[4]])
+      attr(x[[4]], "srcref") <- list(NULL, NULL, else_srcref)
+
+      else_srcref
     } else {
-      ref <- make_default_branch_srcref()
-      tmp <- as.call(c(as.list(x), make_count_branch_call(ref)))
-      attributes(tmp) <- attributes(x)
-      x <- tmp
-      ref
+      default_srcref <- make_default_branch_srcref()
+      default_branch <- new_branch(default_srcref, parent_functions, parent_ref, TRUE)
+      x <- as.call(c(as.list(x), count_branch_call(default_branch)))
+
+      # since there was no ELSE branch - we do not want trace_calls to generate
+      # any counters for this code
+      NULL
     }
 
     attr(x, "srcref") <- list(NULL, cond_srcref, then_srcref, else_srcref)
@@ -130,39 +190,103 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
     }
     
     body_srcref <- make_branch_srcref(3)
+    body_branch <- new_branch(body_srcref, parent_functions, parent_ref, FALSE)
 
-    x[[3]] <- impute_srcref_ast(x[[3]], cond_srcref)
-    x[[4]] <- impute_srcref_ast(x[[4]], body_srcref)
+    if (!is.null(x[[3]]))
+      x[[3]] <- impute_branches(x[[3]], cond_srcref, parent_functions)
 
-    # TODO: why?
-    tmp <- attr(x[[4]], "srcref")
-    if (!is.null(tmp)) {
-      body_srcref <- tmp
-      attr(body_srcref, "branch") <- TRUE
-    }
+    if (!is.null(x[[4]]))
+      x[[4]] <- impute_branches(x[[4]], body_srcref, parent_functions)
 
     default_branch_srcref <- make_default_branch_srcref()
+    default_branch <- new_branch(default_branch_srcref, parent_functions, parent_ref, TRUE)
 
+    # In order to find out which of the two for-loop branches were taken
+    # we need to inject a flag into the loop.
+    # Not to collide with any existing variables, the flag will be named
+    # as __0xABCD where the 0XABCD is string representation of a pointer
+    # to the for-loop language object
     branch_guard_var <- as.name(paste0("__", .Call(covr_sexp_address, x)))
+    # the assignemt, e.g. `__0xABCD` <- TRUE
     branch_guard_expr <- call("<-", branch_guard_var, TRUE)
+    # after the loop body, a check is inserted to find out if the loop has
+    # been executed or the default branch was taken, e.g.
+    # if (!exists("__OxABCD", inherits=FALSE)) { ... }
     branch_check_expr <-
       call("if",
            call("!", call("exists", as.character(branch_guard_var), inherits=FALSE)),
-           make_count_branch_call(default_branch_srcref)
+           count_branch_call(default_branch)
       )
 
-    x[[4]] <- call("{", branch_guard_expr, x[[4]])
-    attr(x[[4]], "srcref") <- list(NULL, NULL, body_srcref)
+    x[[4]] <- call("{", count_branch_call(body_branch), branch_guard_expr, x[[4]])
+    # we need to set all srcref to null except for the body
+    # to make sure it is ignored by the expression couter
+    attr(x[[4]], "srcref") <- list(NULL, NULL, NULL, body_srcref)
 
     # remove the body srcref from body position as it has its own set above
     attr(x, "srcref") <- list(NULL, NULL, cond_srcref, NULL)
 
     x <- call("{", x, branch_check_expr)
-    attr(x, "srcref") <- list(NULL, NULL, default_branch_srcref)
   } else if (fun == "while") {
+    # x:
+    # WHILE cond body
+    # pd_child:
+    # WHILE ( cond ) body
+    # 1     2 3   4  5
+    browser()
     stopifnot(FALSE)
   } else if (fun == "switch") {
-    stopifnot(FALSE)
+    # x:
+    # SWITCH cond case1 case2 ... caseM
+    # pd_child:
+    # expr ( expr1 , expr2 , ... , exprN)
+    # 1    2 3     4 5     6 ...
+    #  or
+    # expr ( expr, SYMBOL_SUB EQ_SUB expr1 , ... )
+    cond_srcref <- make_srcref(3)
+    # condition cannot be be NULL
+    x[[2]] <- impute_branches(x[[2]], cond_srcref, parent_functions)
+    
+    # collect all, but the actual expression representing the switch itself
+    exprs <- tail(which(pd_child$token == "expr"), n = -2)
+
+    # Add NULLs for drop through conditions
+    token <- pd_child$token
+    next_token <- c(tail(token, n = -1), NA_character_)
+    drops <- which(token == "EQ_SUB" & next_token != "expr")
+    exprs <- sort(c(exprs, drops))
+
+    default_srcref <- make_default_branch_srcref()
+    default_branch <- new_branch(default_srcref, parent_functions, parent_ref, TRUE)
+
+    branch_guard_var <- as.name(paste0("__", .Call(covr_sexp_address, x)))
+    switch_val <- as.name(paste0("__", .Call(covr_sexp_address, x), "__val"))
+    branch_guard_expr <- call("<-", branch_guard_var, TRUE)
+    branch_check_expr <-
+      call(
+        "if",
+        call("!", call("exists", as.character(branch_guard_var), inherits=FALSE)),
+        count_branch_call(default_branch),
+        switch_val
+      )
+
+    for (i in seq_along(exprs)) {
+      expr <- exprs[i]
+      if (expr %in% drops) next;
+      i <- i + 2
+
+      srcref <- make_branch_srcref(expr)
+      branch <- new_branch(srcref, parent_functions, parent_ref, FALSE)
+
+      x[[i]] <- call("{", branch_guard_expr, count_branch_call(branch), impute_branches(x[[i]], srcref, parent_functions))
+      attr(x[[i]], "srcref") <- list(NULL, NULL, NULL, srcref)
+    }
+
+    # remove the body srcref from body position as it has its own set above
+    refs <- c(list(NULL, cond_srcref), lapply(seq(length(x)-2), function(x) NULL))
+    attr(x, "srcref") <- refs
+
+    x <- call("if", TRUE, call("{", call("<-", switch_val, x), branch_check_expr))
   } else if (fun == "function") {
     # first update formals
     args <- if (!is.null(x[[2]])) {
@@ -170,30 +294,35 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
     } else {
       integer(0)
     }
-    srcrefs <- which(pd_child$token == "expr")
+    exprs <- which(pd_child$token == "expr")
 
-    stopifnot(length(args) == length(srcrefs) - 1)
+    stopifnot(length(args) == length(exprs) - 1)
 
     for (i in seq_along(args)) {
       arg <- args[i]
-      x[[2]][[arg]] <- impute_srcref_ast(x[[2]][[arg]], make_srcref(srcrefs[i]))
+
+      if (is.null(x[[2]][[arg]])) next;
+      
+      x[[2]][[arg]] <- impute_branches(x[[2]][[arg]], make_srcref(exprs[i]), parent_functions)
     }
 
     # then update body
-    x[[3]] <- impute_srcref_ast(x[[3]], make_srcref(nrow(pd_child)))
+    x[[3]] <- impute_branches(x[[3]], make_srcref(nrow(pd_child)), parent_functions)
   } else if (fun == "{") {
-    # TODO: add NULL for srcref of { itself
     refs <- attr(x, "srcref")
     stopifnot(length(x) == length(refs))
     for (i in seq_along(x)[-1]) {
-      x[[i]] <- impute_srcref_ast(x[[i]], refs[[i]])
+      if (!is.null(x[[i]]))
+        x[[i]] <- impute_branches(x[[i]], refs[[i]], parent_functions)
     }
   } else {
     refs <- which(pd_child$token == "expr")
+    browser(expr=length(x) != length(refs))
     stopifnot(length(x) == length(refs))
 
     for (i in seq_along(x)) {
-      x[[i]] <- impute_srcref_ast(x[[i]], make_srcref(refs[i]))
+      if (!iis.null(x[[i]]))
+        x[[i]] <- impute_branches(x[[i]], make_srcref(refs[i]), parent_functions)
     }
   }
 
@@ -201,160 +330,6 @@ impute_srcref_ast <- function(x, parent_ref, strip_function_def=FALSE) {
 }
 
 is_conditional_or_loop <- function(x) is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "else", "switch", "while")
-## #' @importFrom utils getParseData getSrcref tail
-## impute_srcref <- function(x, parent_ref) {
-##   if (!is_conditional_or_loop(x)) return(NULL)
-##   if (is.null(parent_ref)) return(NULL)
-
-##   pd <- get_tokens(parent_ref)
-##   pd_expr <-
-##     (
-##       (pd$line1 == parent_ref[[1L]] & pd$line2 == parent_ref[[3L]]) |
-##       (pd$line1 == parent_ref[[7L]] & pd$line2 == parent_ref[[8L]])
-##     ) &
-##     pd$col1 == parent_ref[[2L]] &
-##     pd$col2 == parent_ref[[4L]] &
-##     pd$token == "expr"
-##   pd_expr_idx <- which(pd_expr)
-##   if (length(pd_expr_idx) == 0L) return(NULL) # srcref not found in parse data
-
-##   if (length(pd_expr_idx) > 1) pd_expr_idx <- pd_expr_idx[[1]]
-
-##   expr_id <- pd$id[pd_expr_idx]
-##   pd_child <- pd[pd$parent == expr_id, ]
-##   pd_child <- pd_child[order(pd_child$line1, pd_child$col1), ]
-
-##   # exclude comments
-##   pd_child <- pd_child[pd_child$token != "COMMENT", ]
-
-##   if (pd$line1[pd_expr_idx] == parent_ref[[7L]] & pd$line2[pd_expr_idx] == parent_ref[[8L]]) {
-##     line_offset <- parent_ref[[7L]] - parent_ref[[1L]]
-##   } else {
-##     line_offset <- 0
-##   }
-
-##   make_srcref <- function(from, to = from) {
-##     if (length(from) == 0) {
-##       return(NULL)
-##     }
-
-##     srcref(
-##       attr(parent_ref, "srcfile"),
-##       c(pd_child$line1[from] - line_offset,
-##         pd_child$col1[from],
-##         pd_child$line2[to] - line_offset,
-##         pd_child$col2[to],
-##         pd_child$col1[from],
-##         pd_child$col2[to],
-##         pd_child$line1[from],
-##         pd_child$line2[to]
-##       )
-##     )
-##   }
-
-##   make_branch_srcref <- function(from) {
-##     ref <- make_srcref(from)
-##     attr(ref, "branch") <- 1
-##     ref
-##   }
-
-##   make_default_branch_srcref <- function() {
-##     last_expr <- pd_child[nrow(pd_child), ]
-
-##     outer_scope_id <- pd$parent[pd_expr_idx]
-##     outer_scope <- pd[pd$id == outer_scope_id, ]
-
-##     ref <- srcref(
-##       attr(parent_ref, "srcfile"),
-##       c(last_expr$line2,
-##         last_expr$col2 + 1,
-##         outer_scope$line2,
-##         outer_scope$col2 - 1,
-##         last_expr$col2 + 1,
-##         outer_scope$col2 - 1,
-##         last_expr$line2,
-##         outer_scope$line2
-##         )
-##     )
-
-##     attr(ref, "branch") <- 2
-##     ref
-##   }
-
-##   #browser()
-
-##   switch(
-##     as.character(x[[1L]]),
-##     "if" = {
-##       ## browser()
-##       list(
-##         NULL,
-##         make_srcref(3),
-##         make_branch_srcref(5),
-##         if (length(x) == 4) make_branch_srcref(7) else make_default_branch_srcref()
-##       )
-##     },
-
-##     "for" = {
-##       list(
-##         NULL,
-##         NULL,
-##         make_srcref(2),
-##         make_branch_srcref(3),
-##         make_default_branch_srcref()
-##       )
-##     },
-
-##     "while" = {
-##       list(
-##         NULL,
-##         make_srcref(3),
-##         make_branch_srcref(5),
-##         make_default_branch_srcref()
-##       )
-##     },
-
-##     "switch" = {
-##       exprs <- tail(which(pd_child$token == "expr"), n = -1)
-
-##       # Add NULLs for drop through conditions
-##       token <- pd_child$token
-##       next_token <- c(tail(token, n = -1), NA_character_)
-##       drops <- which(token == "EQ_SUB" & next_token != "expr")
-
-##       exprs <- sort(c(exprs, drops))
-
-##       ignore_drop_through <- function(x) {
-##         if (x %in% drops) {
-##           return(NULL)
-##         }
-##         x
-##       }
-
-##       exprs <- lapply(exprs, ignore_drop_through)
-
-##       # Don't create srcrefs for ... conditions
-##       ignore_dots <- function(x) {
-##         if (identical("...", pd$text[pd$parent == pd_child$id[x]])) {
-##           return(NULL)
-##         }
-##         x
-##       }
-
-##       exprs <- lapply(exprs, ignore_dots)
-
-##       browser()
-##       # TODO: add default branch is there is no default case
-##       c(list(NULL),
-##         list(make_srcref(3)),
-##         lapply(exprs[-1], make_branch_srcref))
-##     },
-
-##     NULL
-##   )
-## }
-
-## is_conditional_or_loop <- function(x) is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "else", "switch", "while")
 
 package_parse_data <- new.env()
 

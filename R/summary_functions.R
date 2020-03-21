@@ -133,40 +133,12 @@ zero_coverage <- function(x, ...) {
   }
 }
 
-#' Checks whether a branch contains an expression
-#' s1: a srcref of a branch
-#' s2: a srcref of an expression
-srcref_contains <- function (br_srcref, expr_srcref) {
-  s1 <- as.integer(br_srcref)
-  s2 <- as.integer(expr_srcref)
-
-  br_ln1 <- s1[[1L]]
-  br_col1 <- s1[[5L]]
-  br_ln2 <- s1[[3L]]
-  br_col2 <- s1[[6L]]
-
-  expr_ln1 <- s2[[1L]]
-  expr_col1 <- s2[[5L]]
-  expr_ln2 <- s2[[3L]]
-  expr_col2 <- s2[[6L]]
-
-  if (is_phony(expr_srcref)) {
-    # this is the case of an expression that was injected at the end of
-    # an implicit other branch in `if (...) X`
-    br_ln1 == expr_ln1 && br_col1 == expr_col1 &&
-      br_ln2 == expr_ln2 && br_col2 == expr_col2
-  } else {
-    (br_ln1 < expr_ln1 || (br_ln1 == expr_ln1 && br_col1 <= expr_col1)) &&
-      (br_ln2 > expr_ln2 || (br_ln2 == expr_ln2 && br_col2 >= expr_col2))
-  }
-}
-
 branch_coverage <- function (x) {
   structure(
     attr(x, "branches"),
     relative = attr(x, "relative"),
     package = attr(x, "package"),
-    class = "coverage"
+    class = c("branch_coverage", "coverage")
   )
 }
 
@@ -177,22 +149,8 @@ branch_coverage <- function (x) {
 #' @export
 tally_branch_coverage <- function (x) {
   branches <- branch_coverage(x)
-  covered_exprs <- Filter(function(x) x$value > 0, x)
 
-  for(expr in covered_exprs) {
-    for (i in seq_along(branches)) {
-      same_file <- getSrcFilename(expr$srcref) == getSrcFilename(branches[[i]]$srcref)
-      if (same_file && branches[[i]]$value == 0) {
-        branches[[i]]$value <- sum(srcref_contains(branches[[i]]$srcref, expr$srcref))
-      }
-    }
-  }
-
-  if(length(branches) != 0) {
-    df <- as.data.frame(branches)
-  } else {
-    as.data.frame(unclass(branches))
-  }
+  as.data.frame(branches, sort=FALSE)
 }
 
 #' Print a coverage object

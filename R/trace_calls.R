@@ -46,14 +46,17 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
     ## `src_ref` also identifies branches for R control structures (for , if,
     ## switch and while). This information is only need here to include the
     ## given srcref into the global .branches environment.
-    for (i in seq_along(src_ref)) {
-      if (isTRUE(attr(src_ref[[i]], "branch"))) {
-        new_branch(src_ref[[i]], parent_functions)
-      }
-      if (isTRUE(attr(src_ref[[i]], "default_branch"))) {
-        src_ref[i] <- list(NULL)
-      }
-    }
+
+    ## for (i in seq_along(src_ref)) {
+    ##   if (isTRUE(attr(src_ref[[i]], "branch"))) {
+    ##     default_branch <- isTRUE(attr(src_ref[[i]], "default_branch"))
+    ##     new_branch(srcref[[i]], parent_functions, default_branch)
+
+    ##     if (default_branch) {
+    ##       src_ref[i] <- list(NULL)
+    ##     }
+    ##   }
+    ## }
 
     if ((identical(x[[1]], as.name("<-")) || identical(x[[1]], as.name("="))) && # nolint
         (is.call(x[[3]]) && identical(x[[3]][[1]], as.name("function")))) {
@@ -83,7 +86,7 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
 
     if (!is.null(src_ref)) {
       fun_call <- call("function", formals(x), body(x))
-      fun_call <- impute_srcref_ast(fun_call, src_ref)
+      fun_call <- impute_branches(fun_call, src_ref, parent_functions)
       fun_formals <- fun_call[[2]]
       fun_body <- fun_call[[3]]
     } else {
@@ -95,7 +98,8 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
           (is.symbol(fun_body) ||
              !(identical(fun_body[[1]], as.name("{")) ||
                  is_conditional_or_loop(fun_body)))) {
-      fun_body <- count(src_ref, parent_functions, trace_calls(fun_body, parent_functions))
+      key <- new_counter(src_ref, parent_functions)
+      fun_body <- count(key, trace_calls(fun_body, parent_functions))
     } else {
       fun_body <- trace_calls(fun_body, parent_functions)
     }
@@ -122,10 +126,6 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
   }
 }
 
-is_phony <- function(srcref) {
-  srcref[5]-1 == srcref[6]
-}
-
 .counters <- new.env(parent = emptyenv())
 .branches <- new.env(parent = emptyenv())
 
@@ -134,11 +134,17 @@ is_phony <- function(srcref) {
 #' @param src_ref a [base::srcref()]
 #' @param parent_functions the functions that this srcref is contained in.
 #' @keywords internal
-new_branch <- function(src_ref, parent_functions) {
-  key <- key(src_ref)
+new_branch <- function(srcref, parent_functions, parent_srcref, default) {
+  parent_key <- key(parent_srcref)
+  pos <- sum(startsWith(ls(.branches), parent_key)) + 1L
+  key <- paste0(collapse="-", c(parent_key, pos))
+
   .branches[[key]]$value <- 0
-  .branches[[key]]$srcref <- src_ref
+  .branches[[key]]$srcref <- srcref
   .branches[[key]]$functions <- parent_functions
+  .branches[[key]]$parent <- parent_srcref
+  .branches[[key]]$pos <- pos
+  .branches[[key]]$default <- default
   key
 }
 

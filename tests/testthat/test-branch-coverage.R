@@ -4,70 +4,150 @@ do_code_coverage <- function(code, test) {
   cc <- code_coverage(code, test)
 
   coverage <- cc
-  coverage <- coverage[order(sapply(coverage, function(x) x$srcref[1L]),sapply(coverage, function(x) x$srcref[5L]))]
+  coverage <- coverage[
+    order(
+      sapply(coverage, function(x) x$srcref[1L]),
+      sapply(coverage, function(x) x$srcref[5L])
+    )
+  ]
+
+  branch_coverage <- branch_coverage(cc)
+  branch_coverage <- branch_coverage[
+    order(
+      sapply(branch_coverage, function(x) x$srcref[1L]),
+      sapply(branch_coverage, function(x) x$srcref[5L]),
+      sapply(branch_coverage, function(x) key(x$parent))
+    )
+  ]
 
   counters <- sapply(coverage, function(x) as.character(x$srcref))
   names(counters) <- NULL
+  branch_counters <- sapply(branch_coverage, function(x) as.character(x$srcref))
+  names(branch_counters) <- NULL
 
   expressions <- tally_coverage(cc, by="expression")
-  expressions <- sort(expressions)
+  expressions <- expressions[order(expressions$first_line, expressions$first_byte), ]
 
+  ## browser(expr=test == "f(0)")
   branches <- tally_branch_coverage(cc)
-  branches <- sort(branches)
+  branches <- branches[order(branches$first_line, branches$first_byte, branches$parent), ]
 
   list(
     coverage=coverage,
     counters=counters,
+    branch_counters=branch_counters,
     expressions=expressions,
     branches=branches
   )
 }
 
-## test_that("basic if-else", {
-##   code <- "f <- function(x) if (x) 1 else 2"
-##   test <- "f(TRUE)"
+test_that("basic if-else", {
+  code <- "f <- function(x) if (x) 1 else 2"
 
-##   cc <- do_code_coverage(code, test)
+  cc <- do_code_coverage(code, "f(TRUE)")
+  expect_equal(cc$counters, c("x", "1", "2"))
+  expect_equal(cc$expressions$value, c(1, 1, 0))
+  expect_equal(cc$branches$value, c(1, 0))
 
-##   expect_equal(cc$expressions$value, c(1, 1, 0))
-##   expect_equal(cc$branches$value, c(1, 0))
-## })
+  cc <- do_code_coverage(code, "f(FALSE)")
+  expect_equal(cc$expressions$value, c(1, 0, 1))
+  expect_equal(cc$branches$value, c(0, 1))
 
-## test_that("basic if-else wrapped in {}", {
-##   code <- "f <- function(x) { if (x) 1 else 2 }"
-##   test <- "f(TRUE)"
+  cc <- do_code_coverage(code, "f(TRUE);f(FALSE)")
+  expect_equal(cc$expressions$value, c(2, 1, 1))
+  expect_equal(cc$branches$value, c(1, 1))
+})
 
-##   cc <- do_code_coverage(code, test)
+test_that("nested if-else", {
+  code <- "f <- function(x) if (x==1) 1 else if (x==2) 2 else 3"
 
-##   expect_equal(cc$expressions$value, c(1, 1, 0))
-##   expect_equal(cc$branches$value, c(1, 0))
-## })
+  cc <- do_code_coverage(code, "f(1)")
+  expect_equal(cc$counters, c("x==1", "1", "x==2", "2", "3"))
+  expect_equal(cc$expressions$value, c(1, 1, 0, 0, 0))
+  expect_equal(cc$branches$value, c(1, 0, 0 ,0))
 
-## test_that("basic implicit 2nd btanch in if-then", {
-##   code <- "f <- function(x) if (x) 1"
-##   test <- "f(FALSE)"
+  cc <- do_code_coverage(code, "f(2)")
+  expect_equal(cc$expressions$value, c(1, 0, 1, 1, 0))
+  expect_equal(cc$branches$value, c(0, 1, 1, 0))
 
-##   cc <- do_code_coverage(code, test)
+  cc <- do_code_coverage(code, "f(3)")
+  expect_equal(cc$expressions$value, c(1, 0, 1, 0, 1))
+  expect_equal(cc$branches$value, c(0, 1, 0, 1))
 
-##   expect_equal(cc$expressions$value, c(1, 0, 1))
-##   expect_equal(cc$branches$value, c(0, 1))
-## })
+  cc <- do_code_coverage(code, "f(1);f(2);f(3)")
+  expect_equal(cc$expressions$value, c(3, 1, 2, 1, 1))
+  expect_equal(cc$branches$value, c(1, 1, 1, 1))
+})
+
+test_that("basic if-else wrapped in {}", {
+  code <- "f <- function(x) { if (x) 1 else 2 }"
+
+  cc <- do_code_coverage(code, "f(TRUE)")
+  expect_equal(cc$counters, c("x", "1", "2"))
+  expect_equal(cc$expressions$value, c(1, 1, 0))
+  expect_equal(cc$branches$value, c(1, 0))
+
+  cc <- do_code_coverage(code, "f(FALSE)")
+  expect_equal(cc$expressions$value, c(1, 0, 1))
+  expect_equal(cc$branches$value, c(0, 1))
+
+  cc <- do_code_coverage(code, "f(TRUE);f(FALSE)")
+  expect_equal(cc$expressions$value, c(2, 1, 1))
+  expect_equal(cc$branches$value, c(1, 1))
+})
+
+test_that("basic if-else with branches wrapped in {}", {
+  code <- "f <- function(x) { if (x) { 1;2 } else { 3;4 } }"
+
+  cc <- do_code_coverage(code, "f(TRUE)")
+  expect_equal(cc$counters, c("x", "1", "2", "3", "4"))
+  expect_equal(cc$expressions$value, c(1, 1, 1, 0, 0))
+  expect_equal(cc$branches$value, c(1, 0))
+
+  cc <- do_code_coverage(code, "f(FALSE)")
+  expect_equal(cc$expressions$value, c(1, 0, 0, 1, 1))
+  expect_equal(cc$branches$value, c(0, 1))
+
+  cc <- do_code_coverage(code, "f(TRUE);f(FALSE)")
+  expect_equal(cc$expressions$value, c(2, 1, 1, 1, 1))
+  expect_equal(cc$branches$value, c(1, 1))
+})
+
+test_that("basic implicit 2nd btanch in if-then", {
+  code <- "f <- function(x) if (x) 1"
+
+  cc <- do_code_coverage(code, "f(TRUE)")
+  expect_equal(cc$counters, c("x", "1"))
+  expect_equal(cc$expressions$value, c(1, 1))
+  expect_equal(cc$branches$value, c(1, 0))
+
+  cc <- do_code_coverage(code, "f(FALSE)")
+  expect_equal(cc$expressions$value, c(1, 0))
+  expect_equal(cc$branches$value, c(0, 1))
+
+  cc <- do_code_coverage(code, "f(TRUE);f(FALSE)")
+  expect_equal(cc$expressions$value, c(2, 1))
+  expect_equal(cc$branches$value, c(1, 1))
+})
 
 #code <- "f <- function() for(i in 1) { i; i+1 }"
 #code <- "f <- function() for(i in 1) i"
-## test_that("for loop with nested if", {
-##   code <- "f <- function(x) for(i in x) if (i) 1 else 2"
+test_that("for loop with body if", {
+  code <- "f <- function(x) for(i in x) if (i) 1"
 
-##   cc <- do_code_coverage(code, "f(1)")
-##   expect_equal(cc$counters, c("x", "i", "1", "2"))
-##   expect_equal(cc$expressions$value, c(1, 1, 1, 0))
-##   expect_equal(cc$branches$value, c(1, 1, 0, 0))
+  cc <- do_code_coverage(code, "f(0)")
+  expect_equal(cc$counters, c("x", "i", "1"))
+  expect_equal(cc$expressions$value, c(1, 1, 0))
+  expect_equal(cc$branches$value, c(1, 0, 0, 1))
 
-##   cc <- do_code_coverage(code, "f(NULL")
-##   expect_equal(cc$counters, c("x", "i", "1", "2"))
-##   expect_equal(cc$expressions$value, c(1, 0, 0, 0))
-##   expect_equal(cc$branches$value, c(0, 0, 0, 1))
-## })
+  cc <- do_code_coverage(code, "f(1)")
+  expect_equal(cc$expressions$value, c(1, 1, 1))
+  expect_equal(cc$branches$value, c(1, 1, 0, 0))
+
+  cc <- do_code_coverage(code, "f(NULL)")
+  expect_equal(cc$expressions$value, c(1, 0, 0))
+  expect_equal(cc$branches$value, c(0, 0, 1, 0))
+})
 
 test_that("for loop with nested if in cond", {
   code <- "f <- function(x) for(i in if (!x) 1) i"
@@ -78,14 +158,30 @@ test_that("for loop with nested if in cond", {
   expect_equal(cc$branches$value, c(0, 1, 0, 1))
 
   cc <- do_code_coverage(code, "f(FALSE)")
-  expect_equal(cc$counters, c("!x", "1", "i"))
   expect_equal(cc$expressions$value, c(1, 1, 1))
   expect_equal(cc$branches$value, c(1, 0, 1, 0))
 
   cc <- do_code_coverage(code, "f(FALSE);f(TRUE)")
-  expect_equal(cc$counters, c("!x", "1", "i"))
   expect_equal(cc$expressions$value, c(2, 1, 1))
   expect_equal(cc$branches$value, c(1, 1, 1, 1))
+})
+
+test_that("for loop with nested if in cond", {
+  code <- "f <- function(x) for(i in { if (!x) { 1+1 } }) { if (i==2) 3 }"
+
+  cc <- do_code_coverage(code, "f(TRUE)")
+  expect_equal(cc$counters, c("!x", "1+1", "i==2", "3"))
+  expect_equal(cc$expressions$value, c(1, 0, 0, 0))
+  expect_equal(cc$branches$value, c(0, 1, 0, 0, 0, 1))
+
+  cc <- do_code_coverage(code, "f(FALSE)")
+  expect_equal(cc$expressions$value, c(1, 1, 1, 1))
+  expect_equal(cc$branch_counters, c("{ 1+1 }", "", "{ if (i==2) 3 }", "3", "", ""))
+  expect_equal(cc$branches$value, c(1, 0, 1, 1, 0, 0))
+
+  cc <- do_code_coverage(code, "f(FALSE);f(TRUE)")
+  expect_equal(cc$expressions$value, c(2, 1, 1, 1))
+  expect_equal(cc$branches$value, c(1, 1, 1, 1, 0, 1))
 })
 
 
