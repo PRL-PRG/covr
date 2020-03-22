@@ -89,6 +89,10 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
       fun_call <- impute_branches(fun_call, src_ref, parent_functions)
       fun_formals <- fun_call[[2]]
       fun_body <- fun_call[[3]]
+      fun_call_srcref <- attr(fun_call, "srcref")
+      if (length(fun_call_srcref) == 3) {
+        src_ref <- fun_call_srcref[[3]]
+      }
     } else {
       fun_formals <- formals(x)
       fun_body <- body(x)
@@ -104,6 +108,7 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
       fun_body <- trace_calls(fun_body, parent_functions)
     }
 
+    # TODO: fix tracing function default arguments
     new_formals <- trace_calls(fun_formals, parent_functions)
     if (is.null(new_formals)) new_formals <- list()
     formals(x) <- new_formals

@@ -344,3 +344,7 @@ trim_ws <- function(x) {
   x <- sub("^[ \t\r\n]+", "", x, perl = TRUE)
   sub("[ \t\r\n]+$", "", x, perl = TRUE)
 }
+
+create_null_list <- function(n) {
+  lapply(seq(1, n), function(x) NULL)
+}

@@ -111,6 +111,13 @@ impute_branches <- function(x, parent_ref, parent_functions) {
               NULL))
   }
 
+  # return early on the following keywords
+  if (nrow(pd_child) == 1 && pd_child$token %in% c("NEXT", "BREAK")) {
+    return(x)
+  } else if (nrow(pd_child) == 3 && pd_child$token[2] %in% c("NS_GET", "NS_GET_INT")) {
+    return(x)
+  }
+
   fun <- as.character(x[[1]])[1]
 
   if ((fun %in% c("!", "~", "~", "+", "-", "*", "/", "^", "<", ">", "<=",
@@ -125,8 +132,6 @@ impute_branches <- function(x, parent_ref, parent_functions) {
       if (!is.null(x[[1]]))
         x[[1]] <- impute_branches(x[[1]], make_srcref(2), parent_functions)
     }
-  } else if (fun %in% c("::", ":::")) {
-    x
   } else if (fun == "<-" || fun == "=") {
     if (!is.null(x[[3]]))
       x[[3]] <- impute_branches(x[[3]], make_srcref(3), parent_functions)
@@ -138,7 +143,6 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     # IF cond then_branch else_branch
     # parse data:
     # IF ( cond ) then_branch ELSE else_branch
-    # 1  2 3    4 5           6    7
     cond_srcref <- make_srcref(3)
     # here it is safe as condition cannot be NULL
     x[[2]] <- impute_branches(x[[2]], cond_srcref, parent_functions)
@@ -159,7 +163,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
       else_branch <- new_branch(else_srcref, parent_functions, parent_ref, FALSE)
 
       if (!is.null(x[[4]]))
-        impute_branches(x[[4]], else_srcref, parent_functions)
+        x[[4]] <- impute_branches(x[[4]], else_srcref, parent_functions)
 
       x[[4]] <- call("{", count_branch_call(else_branch), x[[4]])
       attr(x[[4]], "srcref") <- list(NULL, NULL, else_srcref)
@@ -232,15 +236,25 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     # WHILE cond body
     # pd_child:
     # WHILE ( cond ) body
-    # 1     2 3   4  5
     browser()
     stopifnot(FALSE)
+  } else if (fun == "repeat" && pd_child$token[1] == "REPEAT") {
+    # x:
+    # REPEAT body
+    # pd_child:
+    # REPEAT expr
+    # repeat always executes
+    if (!is.null(x[[2]]))
+      x[[2]] <- impute_branches(x[[2]], make_srcref(2), parent_functions)
   } else if (fun == "switch") {
+    # from `?switch`:
+    # switch works in two distinct ways depending whether the first
+    # argument evaluates to a character string or a number.
+    #
     # x:
     # SWITCH cond case1 case2 ... caseM
     # pd_child:
     # expr ( expr1 , expr2 , ... , exprN)
-    # 1    2 3     4 5     6 ...
     #  or
     # expr ( expr, SYMBOL_SUB EQ_SUB expr1 , ... )
     cond_srcref <- make_srcref(3)
@@ -255,20 +269,34 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     next_token <- c(tail(token, n = -1), NA_character_)
     drops <- which(token == "EQ_SUB" & next_token != "expr")
     exprs <- sort(c(exprs, drops))
+    # a default in a switch is an unnamed argument
+    defaults <- which(token == "','" & next_token != "SYMBOL_SUB") + 1
+    # more than one default is an error so this can only happen if all of the
+    # arguments are unname - thus it is the case of integer-switch, which does
+    # does not have any defaults
+    has_defaults <- if (length(defaults) == 1) {
+      TRUE
+    } else {
+      defaults <- integer()
+      FALSE
+    }
 
-    default_srcref <- make_default_branch_srcref()
-    default_branch <- new_branch(default_srcref, parent_functions, parent_ref, TRUE)
+    if (!has_defaults) {
+      default_srcref <- make_default_branch_srcref()
+      default_branch <- new_branch(default_srcref, parent_functions, parent_ref, TRUE)
 
-    branch_guard_var <- as.name(paste0("__", .Call(covr_sexp_address, x)))
-    switch_val <- as.name(paste0("__", .Call(covr_sexp_address, x), "__val"))
-    branch_guard_expr <- call("<-", branch_guard_var, TRUE)
-    branch_check_expr <-
-      call(
-        "if",
-        call("!", call("exists", as.character(branch_guard_var), inherits=FALSE)),
-        count_branch_call(default_branch),
-        switch_val
-      )
+      switch_val <- as.name(paste0("__", .Call(covr_sexp_address, x), "__val"))
+
+      branch_guard_var <- as.name(paste0("__", .Call(covr_sexp_address, x)))
+      branch_guard_expr <- call("<-", branch_guard_var, TRUE)
+      branch_check_expr <-
+        call(
+          "if",
+          call("!", call("exists", as.character(branch_guard_var), inherits=FALSE)),
+          count_branch_call(default_branch),
+          switch_val
+        )
+    }
 
     for (i in seq_along(exprs)) {
       expr <- exprs[i]
@@ -276,17 +304,30 @@ impute_branches <- function(x, parent_ref, parent_functions) {
       i <- i + 2
 
       srcref <- make_branch_srcref(expr)
-      branch <- new_branch(srcref, parent_functions, parent_ref, FALSE)
+      branch <- new_branch(srcref, parent_functions, parent_ref, expr %in% defaults)
 
-      x[[i]] <- call("{", branch_guard_expr, count_branch_call(branch), impute_branches(x[[i]], srcref, parent_functions))
-      attr(x[[i]], "srcref") <- list(NULL, NULL, NULL, srcref)
+      if (!is.null(x[[i]]))
+        x[[i]] <- impute_branches(x[[i]], srcref, parent_functions)
+
+      if (has_defaults) {
+        new_expr <- call("{", count_branch_call(branch), x[[i]])
+        ref <- list(NULL, NULL, srcref)
+      } else {
+        new_expr <- call("{", branch_guard_expr, count_branch_call(branch), x[[i]])
+        ref <- list(NULL, NULL, NULL, srcref)
+      }
+
+      x[[i]] <- new_expr
+      attr(x[[i]], "srcref") <- ref
     }
 
     # remove the body srcref from body position as it has its own set above
-    refs <- c(list(NULL, cond_srcref), lapply(seq(length(x)-2), function(x) NULL))
+    refs <- c(list(NULL, cond_srcref), create_null_list(length(x)-2))
     attr(x, "srcref") <- refs
 
-    x <- call("if", TRUE, call("{", call("<-", switch_val, x), branch_check_expr))
+    if (!has_defaults) {
+      x <- call("if", TRUE, call("{", call("<-", switch_val, x), branch_check_expr))
+    }
   } else if (fun == "function") {
     # first update formals
     args <- if (!is.null(x[[2]])) {
@@ -301,13 +342,17 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     for (i in seq_along(args)) {
       arg <- args[i]
 
-      if (is.null(x[[2]][[arg]])) next;
-      
-      x[[2]][[arg]] <- impute_branches(x[[2]][[arg]], make_srcref(exprs[i]), parent_functions)
+      if (!is.null(x[[2]][[arg]]))
+        x[[2]][[arg]] <- impute_branches(x[[2]][[arg]], make_srcref(exprs[i]), parent_functions)
     }
 
     # then update body
-    x[[3]] <- impute_branches(x[[3]], make_srcref(nrow(pd_child)), parent_functions)
+    body_srcref <- make_srcref(nrow(pd_child))
+    x[[3]] <- impute_branches(x[[3]], body_srcref, parent_functions)
+    # x could be either 3 or 4 elements long, but always the 3. will be body
+    ref <- create_null_list(length(x))
+    ref[[3]] <- body_srcref
+    attr(x, "srcref") <- ref
   } else if (fun == "{") {
     refs <- attr(x, "srcref")
     stopifnot(length(x) == length(refs))
@@ -321,7 +366,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     stopifnot(length(x) == length(refs))
 
     for (i in seq_along(x)) {
-      if (!iis.null(x[[i]]))
+      if (!is.null(x[[i]]))
         x[[i]] <- impute_branches(x[[i]], make_srcref(refs[i]), parent_functions)
     }
   }
