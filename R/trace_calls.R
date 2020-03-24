@@ -43,20 +43,6 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
   }
   else if (is.call(x)) {
     src_ref <- attr(x, "srcref")
-    ## `src_ref` also identifies branches for R control structures (for , if,
-    ## switch and while). This information is only need here to include the
-    ## given srcref into the global .branches environment.
-
-    ## for (i in seq_along(src_ref)) {
-    ##   if (isTRUE(attr(src_ref[[i]], "branch"))) {
-    ##     default_branch <- isTRUE(attr(src_ref[[i]], "default_branch"))
-    ##     new_branch(srcref[[i]], parent_functions, default_branch)
-
-    ##     if (default_branch) {
-    ##       src_ref[i] <- list(NULL)
-    ##     }
-    ##   }
-    ## }
 
     if ((identical(x[[1]], as.name("<-")) || identical(x[[1]], as.name("="))) && # nolint
         (is.call(x[[3]]) && identical(x[[3]][[1]], as.name("function")))) {
