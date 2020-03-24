@@ -121,7 +121,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
   fun <- as.character(x[[1]])[1]
 
   if ((fun %in% c("!", "~", "~", "+", "-", "*", "/", "^", "<", ">", "<=",
-                 ">=", "==", "&", "&&", "|", "||", "$", "[", "[[")) ||
+                 ">=", "==", "&", "&&", "|", "||", "$", "[", "[[", ":")) ||
         (startsWith(fun, "%") && endsWith(fun, "%"))) {
     if (length(x) == 3) {
       if (!is.null(x[[2]]))
@@ -267,14 +267,21 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     # Add NULLs for drop through conditions
     token <- pd_child$token
     next_token <- c(tail(token, n = -1), NA_character_)
+
+    # remove ... like in function(x, ...) switch(x, ...)
+    elipsis <- which(sapply(seq_along(pd_child$id), function(i) {
+      identical("...", pd$text[pd$parent == pd_child$id[i]])
+    }))
+
     drops <- which(token == "EQ_SUB" & next_token != "expr")
     exprs <- sort(c(exprs, drops))
     # a default in a switch is an unnamed argument
     defaults <- which(token == "','" & next_token != "SYMBOL_SUB") + 1
+    defaults <- defaults[!(defaults %in% elipsis)]
     # more than one default is an error so this can only happen if all of the
     # arguments are unname - thus it is the case of integer-switch, which does
     # does not have any defaults
-    has_defaults <- if (length(defaults) == 1) {
+    has_defaults <- if (length(defaults) == 1 || length(elipsis) > 0) {
       TRUE
     } else {
       defaults <- integer()
@@ -300,7 +307,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
 
     for (i in seq_along(exprs)) {
       expr <- exprs[i]
-      if (expr %in% drops) next;
+      if (expr %in% drops || expr %in% elipsis) next;
       i <- i + 2
 
       srcref <- make_branch_srcref(expr)
