@@ -349,8 +349,13 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     for (i in seq_along(args)) {
       arg <- args[i]
 
+      arg_srcref <- make_srcref(exprs[i])
       if (!is.null(x[[2]][[arg]]))
-        x[[2]][[arg]] <- impute_branches(x[[2]][[arg]], make_srcref(exprs[i]), parent_functions)
+        x[[2]][[arg]] <- impute_branches(x[[2]][[arg]], arg_srcref, parent_functions)
+
+      if (is.null(attr(x[[2]][[arg]], "srcref")) && !is_conditional_loop_or_block(x[[2]][[arg]])) {
+        attr(x[[2]][[arg]], "srcref") <- arg_srcref
+      }
     }
 
     # then update body

@@ -52,8 +52,11 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
     # do not try to trace curly curly
     if (identical(x[[1]], as.name("{")) && length(x) == 2 && is.call(x[[2]]) && identical(x[[2]][[1]], as.name("{"))) {
       as.call(x)
-    } else if (!is.null(src_ref)) {
+    } else if (!is.null(src_ref) && is.list(src_ref)) {
       as.call(Map(trace_calls, x, src_ref, MoreArgs = list(parent_functions = parent_functions)))
+    } else if (!is.null(src_ref)) {
+      key <- new_counter(src_ref, parent_functions)
+      count(key, as.call(recurse(x)))
     } else if (!is.null(parent_ref)) {
       key <- new_counter(parent_ref, parent_functions)
       count(key, as.call(recurse(x)))

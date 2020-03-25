@@ -1,3 +1,39 @@
+test_that("tracing of default arguments in function", {
+  code <- "f <- function(x=1, y=sin(1), z=if (x > 0) y + 1) z"
+  cc <- do_code_coverage(code, "f()")
+
+  expect_equal(cc$counters, c("sin(1)", "x > 0", "y + 1", "z"))
+  expect_equal(cc$branch_counters, c("y + 1", ""))
+  expect_equal(cc$expressions$value, c(1, 1, 1, 1))
+  expect_equal(cc$branches$value, c(1, 0))
+})
+
+test_that("tracing if default arguments in nested functions", {
+  code <- "f <- function() function(x=1, y=sin(1), z=if (x > 0) y + 1) z"
+  cc <- do_code_coverage(code, "f()()")
+
+  expect_equal(cc$counters, c("function(x=1, y=sin(1), z=if (x > 0) y + 1) z", "sin(1)", "x > 0", "y + 1", "z"))
+  expect_equal(cc$branch_counters, c("y + 1", ""))
+  expect_equal(cc$expressions$value, c(1, 1, 1, 1, 1))
+  expect_equal(cc$branches$value, c(1, 0))
+})
+
+test_that("tracing if default arguments in lambads", {
+  code <- "f <- function() lapply(0:1, function(x, y=sin(1), z=if (x > 0) y + 1) z)"
+  cc <- do_code_coverage(code, "f()")
+
+  expect_equal(cc$counters, c(
+    "lapply(0:1, function(x, y=sin(1), z=if (x > 0) y + 1) z)",
+    "sin(1)",
+    "x > 0",
+    "y + 1",
+    "z")
+  )
+  expect_equal(cc$branch_counters, c("y + 1", ""))
+  expect_equal(cc$expressions$value, c(1, 1, 2, 1, 2))
+  expect_equal(cc$branches$value, c(1, 1))
+})
+
 test_that("return a function with if returning either a function or a call with lambda", {
   code <- "f <- function() function(x) if (x) function(y) y + 1 else function(y) y + lapply(x, function(z) z + 1)"
   cc <- do_code_coverage(code, "f()(TRUE)(1)")
@@ -118,7 +154,7 @@ test_that(":: and ::: can be traced", {
 })
 
 test_that("... in function params", {
-  code <- "f <- function(x=-1, ...) if (length(list(...)) > x) 1 else 2"
+  code <- "f <- function(x, ...) if (length(list(...)) > x) 1 else 2"
 
   cc <- do_code_coverage(code, "f(0, 1, 2)")
   expect_equal(cc$counters, c("length(list(...)) > x", "1", "2"))
