@@ -121,7 +121,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
   fun <- as.character(x[[1]])[1]
 
   if ((fun %in% c("!", "~", "~", "+", "-", "*", "/", "^", "<", ">", "<=",
-                 ">=", "==", "&", "&&", "|", "||", "$", "[", "[[", ":")) ||
+                 ">=", "==", "!=", "&", "&&", "|", "||", "$", "[", "[[", ":")) ||
         (startsWith(fun, "%") && endsWith(fun, "%"))) {
     if (length(x) == 3) {
       if (!is.null(x[[2]]))
@@ -350,11 +350,14 @@ impute_branches <- function(x, parent_ref, parent_functions) {
       arg <- args[i]
 
       arg_srcref <- make_srcref(exprs[i])
-      if (!is.null(x[[2]][[arg]]))
+      if (!is.null(x[[2]][[arg]])) {
         x[[2]][[arg]] <- impute_branches(x[[2]][[arg]], arg_srcref, parent_functions)
 
-      if (is.null(attr(x[[2]][[arg]], "srcref")) && !is_conditional_loop_or_block(x[[2]][[arg]])) {
-        attr(x[[2]][[arg]], "srcref") <- arg_srcref
+        if (is.null(attr(x[[2]][[arg]], "srcref")) &&
+              is.call(x[[2]][[arg]]) &&
+              !is_conditional_loop_or_block(x[[2]][[arg]])) {
+          attr(x[[2]][[arg]], "srcref") <- arg_srcref
+        }
       }
     }
 
