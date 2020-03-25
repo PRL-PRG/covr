@@ -144,8 +144,8 @@ branch_coverage <- function (x) {
 
 #' Tally branch coverage
 #'
-#' @inheritParams print_branch_coverage
-#' @return a `data.frame` of branch coverage 
+#' @param x the branch coverage object to be printed
+#' @return a `data.frame` of branch coverage
 #' @export
 tally_branch_coverage <- function (x) {
   branches <- branch_coverage(x)
@@ -158,6 +158,7 @@ tally_branch_coverage <- function (x) {
 #' @param x the coverage object to be printed
 #' @param group whether to group coverage by filename or function
 #' @param by whether to count coverage by line or expression
+#' @param include_branches whether to include branch coverage or not
 #' @param ... additional arguments ignored
 #' @return The coverage object (invisibly).
 #' @export
@@ -196,8 +197,8 @@ print.coverage <- function(x, group = c("filename", "functions"), by = "line", i
       format_percentage(by_coverage[i]))
   }
 
-  if (isTRUE(include_branches)) {
-    print_branch_coverage(x, group=group)
+  if (include_branches) {
+    print(attr(x, "branches"))
   }
 
   invisible(x)
@@ -229,15 +230,12 @@ print.coverages <- function(x, ...) {
 
 #' Print the branch coverage of a coverage object
 #'
-## ' @param x the coverage object to be printed
-## ' @param group whether to group coverage by filename or functions
-## ' @param ... additional arguments ignored
-#' @inheritParams print.coverage
-#' @return The coverage object (invisibly).
+#' @param x the branch coverage object to be printed
+#' @param group whether to group coverage by filename or function
+#' @param ... additional arguments ignored
+#' @return The branch coverage object (invisibly).
 #' @export
-print_branch_coverage <- function(x, group = c("filename", "functions")) {
-  stopifnot(inherits(x, "coverage"))
-
+print.branch_coverage <- function(x, group = c("filename", "functions"), ...) {
   df_br <- tally_branch_coverage(x)
 
   br_c <- branch_coverage(x)

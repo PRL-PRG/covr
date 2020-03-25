@@ -4,7 +4,13 @@
 \alias{print.coverage}
 \title{Print a coverage object}
 \usage{
-\method{print}{coverage}(x, group = c("filename", "functions"), by = "line", ...)
+\method{print}{coverage}(
+  x,
+  group = c("filename", "functions"),
+  by = "line",
+  include_branches = FALSE,
+  ...
+)
 }
 \arguments{
 \item{x}{the coverage object to be printed}
@@ -12,6 +18,8 @@
 \item{group}{whether to group coverage by filename or function}
 
 \item{by}{whether to count coverage by line or expression}
+
+\item{include_branches}{whether to include branch coverage or not}
 
 \item{...}{additional arguments ignored}
 }
