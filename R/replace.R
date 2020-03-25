@@ -9,8 +9,6 @@ replacement <- function(name, env = as.environment(-1), target_value = get(name,
       environment(new_value)$`_f` <- trace_calls(environment(new_value)$`_f`, name)
     } else {
       new_value <- trace_calls(target_value, name)
-      print(new_value)
-      print(ls(.branches))
       attributes(body(new_value)) <- attributes(body(target_value))
     }
     attributes(new_value) <- attributes(target_value)
