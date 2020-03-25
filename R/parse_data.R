@@ -355,11 +355,22 @@ impute_branches <- function(x, parent_ref, parent_functions) {
 
     # then update body
     body_srcref <- make_srcref(nrow(pd_child))
-    x[[3]] <- impute_branches(x[[3]], body_srcref, parent_functions)
-    # x could be either 3 or 4 elements long, but always the 3. will be body
-    ref <- create_null_list(length(x))
-    ref[[3]] <- body_srcref
-    attr(x, "srcref") <- ref
+    if (!is.null(x[[3]])) {
+      x[[3]] <- impute_branches(x[[3]], body_srcref, parent_functions)
+    }
+
+    # covr has to worry about three types of function bodies:
+    # 1. function(...) { ... }
+    # 2. function(...) if (...) ... # or for/while/switch
+    # 3. function(...) single_expression
+    #
+    # for the 1. case the srcref will be set on the call to {
+    # for the 2. case the srcref will be imputed from impute_branches above
+    # for the 3. case the srcref will be set explicitly here by turning it into the first case
+    if (is.null(attr(x[[3]], "srcref")) && !is_conditional_loop_or_block(x[[3]])) {
+      x[[3]] <- call("{", x[[3]])
+      attr(x[[3]], "srcref") <- list(NULL, body_srcref)
+    }
   } else if (fun == "{") {
     refs <- attr(x, "srcref")
     stopifnot(length(x) == length(refs))
@@ -381,7 +392,11 @@ impute_branches <- function(x, parent_ref, parent_functions) {
   x
 }
 
-is_conditional_or_loop <- function(x) is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "else", "switch", "while")
+is_conditional_loop_or_block <- function(x) {
+  is.call(x) &&
+  (identical(x[[1L]], as.name("{")) ||
+    (is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "switch", "while")))
+}
 
 package_parse_data <- new.env()
 

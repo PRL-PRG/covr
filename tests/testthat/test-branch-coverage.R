@@ -1,45 +1,40 @@
-do_code_coverage <- function(code, test) {
-  sort <- function(df) df[order(df$first_line, df$first_byte), ]
+test_that("return a function with if returning either a function or a call with lambda", {
+  code <- "f <- function() function(x) if (x) function(y) y + 1 else function(y) y + lapply(x, function(z) z + 1)"
+  cc <- do_code_coverage(code, "f()(TRUE)(1)")
 
-  cc <- code_coverage(code, test)
+  expect_equal(cc$counters, c(
+    "function(x) if (x) function(y) y + 1 else function(y) y + lapply(x, function(z) z + 1)",
+    "x",
+    "function(y) y + 1",
+    "y + 1",
+    "function(y) y + lapply(x, function(z) z + 1)",
+    "y + lapply(x, function(z) z + 1)",
+    "z + 1"
+  ))
+  expect_equal(cc$branch_counters, c(
+    "function(y) y + 1",
+    "function(y) y + lapply(x, function(z) z + 1)"
+  ))
+  expect_equal(cc$expressions$value, c(1, 1, 1, 1, 0, 0, 0))
+  expect_equal(cc$branches$value, c(1, 0))
+})
 
-  coverage <- cc
-  coverage <- coverage[
-    order(
-      sapply(coverage, function(x) x$srcref[1L]),
-      sapply(coverage, function(x) x$srcref[5L])
-    )
-  ]
+test_that("return a function", {
+  code <- "f <- function() function(x) if (x) 1 else function() { x + 1; 2 }"
 
-  branch_coverage <- branch_coverage(cc)
-  branch_coverage <- branch_coverage[
-    order(
-      sapply(branch_coverage, function(x) x$srcref[1L]),
-      sapply(branch_coverage, function(x) x$srcref[5L]),
-      sapply(branch_coverage, function(x) key(x$parent))
-    )
-  ]
-
-  counters <- sapply(coverage, function(x) as.character(x$srcref))
-  names(counters) <- NULL
-  branch_counters <- sapply(branch_coverage, function(x) as.character(x$srcref))
-  names(branch_counters) <- NULL
-
-  expressions <- tally_coverage(cc, by="expression")
-  expressions <- expressions[order(expressions$first_line, expressions$first_byte), ]
-
-  ## browser(expr=test == "f(0)")
-  branches <- tally_branch_coverage(cc)
-  branches <- branches[order(branches$first_line, branches$first_byte, branches$parent), ]
-
-  list(
-    coverage=coverage,
-    counters=counters,
-    branch_counters=branch_counters,
-    expressions=expressions,
-    branches=branches
-  )
-}
+  cc <- do_code_coverage(code, "f()(FALSE)")
+  expect_equal(cc$counters, c(
+    "function(x) if (x) 1 else function() { x + 1; 2 }",
+    "x",
+    "1",
+    "function() { x + 1; 2 }",
+    "x + 1",
+    "2"
+  ))
+  expect_equal(cc$branch_counters, c("1", "function() { x + 1; 2 }"))
+  expect_equal(cc$expressions$value, c(1, 1, 0, 1, 0, 0))
+  expect_equal(cc$branches$value, c(0, 1))
+})
 
 test_that("return", {
   code <- "f <- function(x) return(if (x > 0) 1)"

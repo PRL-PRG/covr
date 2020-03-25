@@ -86,8 +86,9 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
 
     if (!is.null(attr(x, "srcref")) &&
           (is.symbol(fun_body) ||
-             !(identical(fun_body[[1]], as.name("{")) ||
-                 is_conditional_or_loop(fun_body)))) {
+             !is_conditional_loop_or_block(fun_body))) {
+      # this is the case when the function does not start with neither { nor
+      # any control structure for which we impute srcref in impute_branches
       key <- new_counter(src_ref, parent_functions)
       fun_body <- count(key, trace_calls(fun_body, parent_functions))
     } else {
