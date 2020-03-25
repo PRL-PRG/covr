@@ -6,15 +6,15 @@ test_that("one-line functions are traced correctly", {
 
   fun <- function(x) x + 1
 
-  expect_equal(as.character(body(trace_calls(fun))[[3]][[2]][[1]]),
+  expect_equal(as.character(body(trace_calls(fun))[[2]][[3]][[2]][[1]]),
       c(":::", "covr", "count"))
 
   fun <- function() 1
 
-  expect_equal(as.character(body(trace_calls(fun))[[3]][[2]][[1]]),
+  expect_equal(as.character(body(trace_calls(fun))[[2]][[3]][[2]][[1]]),
       c(":::", "covr", "count"))
 
-  expect_equal(body(trace_calls(fun))[[3]][[3]], body(fun))
+  expect_equal(body(trace_calls(fun))[[2]][[3]][[3]], body(fun))
 })
 test_that("one-line functions with no calls are traced correctly", {
   old <- getOption("keep.source")
@@ -23,10 +23,10 @@ test_that("one-line functions with no calls are traced correctly", {
 
   fun <- function(x) x
 
-  expect_equal(as.character(body(trace_calls(fun))[[3]][[2]][[1]]),
+  expect_equal(as.character(body(trace_calls(fun))[[2]][[3]][[2]][[1]]),
       c(":::", "covr", "count"))
 
-  expect_equal(body(trace_calls(fun))[[3]][[3]], body(fun))
+  expect_equal(body(trace_calls(fun))[[2]][[3]][[3]], body(fun))
 })
 test_that("one-line functions with braces are traced correctly", {
   old <- getOption("keep.source")
