@@ -120,7 +120,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
 
   fun <- as.character(x[[1]])[1]
 
-  if ((fun %in% c("!", "~", "~", "+", "-", "*", "/", "^", "<", ">", "<=",
+  if ((fun %in% c("!", "~", "~", "+", "-", "*", "/", "^", "<", ">", ":=", "<=",
                  ">=", "==", "!=", "&", "&&", "|", "||", "$", "[", "[[", ":")) ||
         (startsWith(fun, "%") && endsWith(fun, "%"))) {
     if (length(x) == 3) {
@@ -385,14 +385,26 @@ impute_branches <- function(x, parent_ref, parent_functions) {
       if (!is.null(x[[i]]))
         x[[i]] <- impute_branches(x[[i]], refs[[i]], parent_functions)
     }
+  } else if (fun == "(") {
+    body_srcref <- make_srcref(2)
+    if (!is.null(x[[2]]))
+      x[[2]] <- impute_branches(x[[2]], body_srcref, parent_functions)
   } else {
-    refs <- which(pd_child$token == "expr")
-    ## browser(expr=length(x) != length(refs))
-    stopifnot(length(x) == length(refs))
+    # take care about the function name explicitly
+    if (is.call(x[[1]])) {
+      x[[1]] <- impute_branches(x[[1]], make_srcref(1), parent_functions)
+    }
 
-    for (i in seq_along(x)) {
-      if (!is.null(x[[i]]))
-        x[[i]] <- impute_branches(x[[i]], make_srcref(refs[i]), parent_functions)
+    # the arguments must be done manually as some can be empty, e.g. f(.=)
+    arg_idx <- 2
+    for (i in seq(3, nrow(pd_child)-1)) {
+      token <- pd_child$token[i]
+      if (token == "expr") {
+        if (!is.null(x[[arg_idx]]))
+          x[[arg_idx]] <- impute_branches(x[[arg_idx]], make_srcref(i), parent_functions)
+      } else if (token == "','") {
+        arg_idx <- arg_idx + 1
+      }
     }
   }
 
