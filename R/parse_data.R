@@ -236,8 +236,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     # WHILE cond body
     # pd_child:
     # WHILE ( cond ) body
-    browser()
-    stopifnot(FALSE)
+    x
   } else if (fun == "repeat" && pd_child$token[1] == "REPEAT") {
     # x:
     # REPEAT body
@@ -388,7 +387,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     }
   } else {
     refs <- which(pd_child$token == "expr")
-    browser(expr=length(x) != length(refs))
+    ## browser(expr=length(x) != length(refs))
     stopifnot(length(x) == length(refs))
 
     for (i in seq_along(x)) {
