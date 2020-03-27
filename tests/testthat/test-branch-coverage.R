@@ -299,46 +299,65 @@ test_that("nested if-else", {
 ##   expect_equal(cc$branches$value, c(1, 1, 1, 1, 0, 1))
 ## })
 
+test_that("for loop that doesn't loop", {
+  code <- "f <- function(x) { for (i numeric(0)) {print(42)}  }"
+
+})
+
 test_that("basic while", {
+  code <- "f <- function(x) { while (x > 0) {x <- x - 1} }"
+
+  cc <- do_code_coverage(code, "f(1)")
+
+  expect_equal(cc$counters, c("x > 0", "x <- x - 1"))
+  expect_equal(cc$branch_counters, c("{x <- x - 1}", ""))
+  expect_equal(cc$expressions$value, c(2, 1))
+  expect_equal(cc$branches$value, c(1, 0)) 
+})
+
+test_that("basic while no { }", {
   code <- "f <- function(x) while (x > 0) x <- x - 1"
 
   cc <- do_code_coverage(code, "f(1)")
 
   expect_equal(cc$counters, c("x > 0", "x <- x - 1"))
+  expect_equal(cc$branch_counters, c("x <- x - 1", ""))
   expect_equal(cc$expressions$value, c(2, 1))
   expect_equal(cc$branches$value, c(1, 0))
 })
 
+test_that("while body not in { }", {
+  code <- "f <- function(x) { while (TRUE) break }"
+
+  cc <- do_code_coverage(code, "f(0)")
+
+  expect_equal(cc$counters, c("TRUE", "break"))
+  expect_equal(cc$branch_counters, c("break", ""))
+  expect_equal(cc$expressions$value, c(1, 1))
+  expect_equal(cc$branches$value, c(1, 0))
+})
+
+test_that("while FALSE", {
+  code <- "f <- function(x) { while (FALSE) {x <- x + 1} }"
+
+  cc <- do_code_coverage(code, "f(0)")
+
+  expect_equal(cc$counters, c("FALSE", "x <- x + 1"))
+  expect_equal(cc$branch_counters, c("{x <- x + 1}", ""))
+  expect_equal(cc$expressions$value, c(1, 0))
+  expect_equal(cc$branches$value, c(0, 1))
+})
+
 test_that("empty while", {
-  code <- "f <- function(x) while (x > 2){}"
+  code <- "f <- function(x) while (x > 2) {}"
 
   cc <- do_code_coverage(code, "f(1)")
+
   expect_equal(cc$counters, c("x > 2"))
   expect_equal(cc$branch_counters, c("{}", ""))
   expect_equal(cc$expressions$value, c(1))
   expect_equal(cc$branches$value, c(0, 1))
 })
-
-#Error in aggregate.data.frame(mf[1L], mf[-1L], FUN = FUN, ...) : no rows to aggregate
-## test_that("empty while within { } ", {
-##   code <- "f <- function(x) { while (x > 2){} }"
-
-##   cc <- do_code_coverage(code, "f(1)")
-##   expect_equal(cc$counters, c("x > 2"))
-##   expect_equal(cc$branch_counters, c("{}", ""))
-##   expect_equal(cc$expressions$value, c(1))
-##   expect_equal(cc$branches$value, c(0, 1))
-## })
-
-#Error in aggregate.data.frame(mf[1L], mf[-1L], FUN = FUN, ...) : no rows to aggregate
-## test_that("basic while", {
-##   code <- "f <- function(x) {while (FALSE) 1}"
-
-##   cc <- do_code_coverage(code, "f(0)")
-##   expect_equal(cc$counters, c("FALSE", "1"))
-##   expect_equal(cc$expressions$value, c(1, 0))
-##   expect_equal(cc$branches$value, c(0, 1))
-## })
 
 test_that("while with break and next", {
   code <- "f <- function(x) while (x < 5) { if (x < 3) break else x <- x + 1; print(x) }"
@@ -366,7 +385,6 @@ test_that("while with break and next", {
 ##   expect_equal(cc$branch_counters, c("2", "4", "3"))
 ##   expect_equal(cc$expressions$value, c(1, 1, 0, 0))
 ##   expect_equal(cc$branches$value, c(1, 0, 0))
-
 ##   cc <- do_code_coverage(code, "f('b')")
 ##   expect_equal(cc$expressions$value, c(1, 1, 0, 0))
 ##   expect_equal(cc$branches$value, c(1, 0, 0))
