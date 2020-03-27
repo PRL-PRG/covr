@@ -73,6 +73,8 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
 
     src_ref <- attr(x, "srcref")
 
+    cat("**** ", parent_functions, "\n")
+    ## browser(expr=parent_functions=="str_c")
     if (!is.null(src_ref)) {
       fun_call <- call("function", formals(x), body(x))
       fun_call <- impute_branches(fun_call, src_ref, parent_functions)

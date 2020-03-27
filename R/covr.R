@@ -531,6 +531,8 @@ run_commands <- function(pkg, lib, commands) {
   cmd <- paste(shQuote(file.path(R.home("bin"), "R")),
                "CMD BATCH --vanilla --no-timing",
                shQuote(outfile), shQuote(failfile))
+  print(commands)
+  print(cmd)
   res <- system(cmd)
   if (res != 0L) {
     show_failures(dirname(failfile))

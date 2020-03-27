@@ -1,3 +1,17 @@
+test_that("function call", {
+  code0 <- "g <- function(...) x\n"
+
+  code <- c(code0, "f <- function() g(a=,b=if (TRUE) 1,c=,d=if (FALSE) 2)")
+  cc <- do_code_coverage(code, "f()")
+  expect_equal(cc$branch_counters, c("1", "", "2", ""))
+
+  code <- c(code0, "f <- function() g(.=)")
+  cc <- do_code_coverage(code, "f()")
+  expect_equal(cc$counters, c("x", "g(.=)"))
+  expect_length(cc$branch_counters, 0)
+  expect_equal(cc$expressions$value, c(1, 1))
+})
+
 test_that("tracing of default arguments in function", {
   code <- "f <- function(x=1, y=sin(1), z=if (x > 0) y + 1) z"
   cc <- do_code_coverage(code, "f()")
