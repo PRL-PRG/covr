@@ -118,6 +118,15 @@ test_that(":: and ::: can be traced", {
   expect_length(cc$branches$value, 0)
 })
 
+test_that("for with braces", {
+  code <- "f <- function(x) { for (i in x) { i <- i + 1; if (i > 1) next else break } }"
+  cc <- do_code_coverage(code, "f(1)")
+  expect_equal(cc$counters, c("x", "i <- i + 1", "i > 1", "next", "break"))
+  expect_equal(cc$branch_counters, c("{ i <- i + 1; if (i > 1) next else break }", "next", "break", ""))
+  expect_equal(cc$expressions$value, c(1, 1, 1, 1, 0))
+  expect_equal(cc$branches$value, c(1, 1, 0, 0))
+})
+
 test_that("for with break and next", {
   code <- "f <- function(x) for (i in x) if (i > 0) next else break"
 

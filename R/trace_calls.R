@@ -100,7 +100,6 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
       fun_body <- trace_calls(fun_body, parent_functions)
     }
 
-    # TODO: fix tracing function default arguments
     new_formals <- trace_calls(fun_formals, parent_functions)
     if (is.null(new_formals)) new_formals <- list()
     formals(x) <- new_formals
