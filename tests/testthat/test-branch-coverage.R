@@ -1,16 +1,16 @@
-test_that("function call", {
-  code0 <- "g <- function(...) 1\n"
+## test_that("function call", {
+##   code0 <- "g <- function(...) 1\n"
 
-  code <- c(code0, "f <- function() g(a=,b=if (TRUE) 1,c=,d=if (FALSE) 2)")
-  cc <- do_code_coverage(code, "f()")
-  expect_equal(cc$branch_counters, c("1", "", "2", ""))
+##   code <- c(code0, "f <- function() g(a=,b=if (TRUE) 1,c=,d=if (FALSE) 2)")
+##   cc <- do_code_coverage(code, "f()")
+##   expect_equal(cc$branch_counters, c("1", "", "2", ""))
 
-  code <- c(code0, "f <- function() g(.=)")
-  cc <- do_code_coverage(code, "f()")
-  expect_equal(cc$counters, c("1", "g(.=)"))
-  expect_length(cc$branch_counters, 0)
-  expect_equal(cc$expressions$value, c(1, 1))
-})
+##   code <- c(code0, "f <- function() g(.=)")
+##   cc <- do_code_coverage(code, "f()")
+##   expect_equal(cc$counters, c("1", "g(.=)"))
+##   expect_length(cc$branch_counters, 0)
+##   expect_equal(cc$expressions$value, c(1, 1))
+## })
 
 ## test_that("tracing of default arguments in function", {
 ##   code <- "f <- function(x=1, y=sin(1), z=if (x > 0) y + 1) z"
@@ -313,8 +313,19 @@ test_that("function call", {
 ##   expect_equal(cc$branches$value, c(1, 1, 1, 1, 0, 1))
 ## })
 
+test_that("for function body within { }", {
+  code <- "f <- function(x) {for (i in 1:x) print(42)}"
+
+  cc <- do_code_coverage(code, "f(2)")
+
+  expect_equal(cc$counters, c("1:x", "print(42)"))
+  expect_equal(cc$branch_counters, c("print(42)", ""))
+  expect_equal(cc$expressions$value, c(1, 2))
+  expect_equal(cc$branches$value, c(1, 0)) 
+})
+
 test_that("for loop that doesn't loop", {
-  code <- "f <- function(x)  for (i in numeric(0)) { print(42)} "
+  code <- "f <- function(x) {for (i in numeric(0)) { print(42)}} "
 
   cc <- do_code_coverage(code, "f(1)")
 
@@ -323,6 +334,17 @@ test_that("for loop that doesn't loop", {
   expect_equal(cc$expressions$value, c(1, 0))
   expect_equal(cc$branches$value, c(0, 1)) 
 })
+
+## test_that("for loop that doesn't loop", {
+##   code <- "f <- function(x)  for (i in numeric(0)) { print(42)} "
+
+##   cc <- do_code_coverage(code, "f(1)")
+
+##   expect_equal(cc$counters, c("numeric(0)", "print(42)"))
+##   expect_equal(cc$branch_counters, c("{ print(42)}", ""))
+##   expect_equal(cc$expressions$value, c(1, 0))
+##   expect_equal(cc$branches$value, c(0, 1)) 
+## })
 
 ## test_that("basic while", {
 ##   code <- "f <- function(x) { while (x > 0) {x <- x - 1} }"
