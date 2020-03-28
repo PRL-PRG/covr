@@ -229,6 +229,8 @@ impute_branches <- function(x, parent_ref, parent_functions) {
 
     # remove the body srcref from body position as it has its own set above
     attr(x, "srcref") <- list(NULL, NULL, cond_srcref, NULL)
+    
+    x <- call("{", x, branch_check_expr)
   } else if (fun == "while") {
     # x:
     # WHILE cond body
@@ -259,6 +261,8 @@ impute_branches <- function(x, parent_ref, parent_functions) {
 
     attr(x[[3]], "srcref") <- list(NULL, NULL, NULL, body_srcref)
     attr(x, "srcref") <- list(NULL, cond_srcref, NULL)
+
+    x <- call("{", x, branch_check_expr)
   } else if (fun == "repeat" && pd_child$token[1] == "REPEAT") {
     # x:
     # REPEAT body

@@ -324,19 +324,8 @@ test_that("for function body within { }", {
   expect_equal(cc$branches$value, c(1, 0)) 
 })
 
-test_that("for loop that doesn't loop", {
-  code <- "f <- function(x) {for (i in numeric(0)) { print(42)}} "
-
-  cc <- do_code_coverage(code, "f(1)")
-
-  expect_equal(cc$counters, c("numeric(0)", "print(42)"))
-  expect_equal(cc$branch_counters, c("{ print(42)}", ""))
-  expect_equal(cc$expressions$value, c(1, 0))
-  expect_equal(cc$branches$value, c(0, 1)) 
-})
-
 ## test_that("for loop that doesn't loop", {
-##   code <- "f <- function(x)  for (i in numeric(0)) { print(42)} "
+##   code <- "f <- function(x) {for (i in numeric(0)) { print(42)}} "
 
 ##   cc <- do_code_coverage(code, "f(1)")
 
@@ -346,8 +335,9 @@ test_that("for loop that doesn't loop", {
 ##   expect_equal(cc$branches$value, c(0, 1)) 
 ## })
 
+
 ## test_that("basic while", {
-##   code <- "f <- function(x) { while (x > 0) {x <- x - 1} }"
+##   code <- "f <- function(x) while (x > 0) {x <- x - 1} "
 
 ##   cc <- do_code_coverage(code, "f(1)")
 
