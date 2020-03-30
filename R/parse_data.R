@@ -411,6 +411,12 @@ impute_branches <- function(x, parent_ref, parent_functions) {
       if (!is.null(x[[i]]))
         x[[i]] <- impute_branches(x[[i]], refs[[i]], parent_functions)
     }
+    # prevent multiple `{` nesting
+    # this could happen if the only expression in within the current `{`
+    # is one of the control structure for which we impute source references
+    if (length(x) == 2 && identical(x[[2]][[1]], as.name("{"))) {
+      x <- x[[2]]
+    }
   } else if (fun == "(") {
     body_srcref <- make_srcref(2)
     if (!is.null(x[[2]]))
