@@ -414,7 +414,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     # prevent multiple `{` nesting
     # this could happen if the only expression in within the current `{`
     # is one of the control structure for which we impute source references
-    if (length(x) == 2 && identical(x[[2]][[1]], as.name("{"))) {
+    if (length(x) == 2 && class(x[[2]]) == "{") {
       x <- x[[2]]
     }
   } else if (fun == "(") {
