@@ -9,7 +9,7 @@ test_that("function_coverage basic test", {
   cc
 })
 
-test_that("function call", {
+test_that("function call with alist", {
   code0 <- "g <- function(...) 1\n"
 
   code <- c(code0, "f <- function() g(a=,b=if (TRUE) 1,c=,d=if (FALSE) 2)")
