@@ -1,5 +1,16 @@
+test_that("function_coverage basic test", {
+  g <- function(x) if (x) 3
+  cc_raw <- function_coverage(g, quote(g(1)))
+  cc <- compute_coverage(cc_raw)
+  expect_equal(cc$counters, c("x", "3"))
+  expect_equal(cc$branch_counters, c("3", ""))
+  expect_equal(cc$expressions$value, c(1, 1))
+  expect_equal(cc$branches$value, c(1, 0))
+  cc
+})
+
 test_that("function call", {
-  code0 <- "g <- function(...) x\n"
+  code0 <- "g <- function(...) 1\n"
 
   code <- c(code0, "f <- function() g(a=,b=if (TRUE) 1,c=,d=if (FALSE) 2)")
   cc <- do_code_coverage(code, "f()")
@@ -7,7 +18,7 @@ test_that("function call", {
 
   code <- c(code0, "f <- function() g(.=)")
   cc <- do_code_coverage(code, "f()")
-  expect_equal(cc$counters, c("x", "g(.=)"))
+  expect_equal(cc$counters, c("1", "g(.=)"))
   expect_length(cc$branch_counters, 0)
   expect_equal(cc$expressions$value, c(1, 1))
 })

@@ -192,7 +192,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
 
       make_srcref(1, pd=pd_expr)
     }
-    
+
     body_srcref <- make_branch_srcref(3)
     body_branch <- new_branch(body_srcref, parent_functions, parent_ref, FALSE)
 
@@ -229,7 +229,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
 
     # remove the body srcref from body position as it has its own set above
     attr(x, "srcref") <- list(NULL, NULL, cond_srcref, NULL)
-    
+
     x <- call("{", x, branch_check_expr)
   } else if (fun == "while") {
     # x:

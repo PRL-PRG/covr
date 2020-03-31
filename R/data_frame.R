@@ -67,7 +67,7 @@ merge_values <- function(x, sentinel = "___NA___") {
   # We can't use aggregate directly, because it doesn't allow missing values in
   # grouping variables...
   x$functions[is.na(x$functions)] <- sentinel
-  res <- aggregate(value ~ ., x, sum)                ## <--- error here
+  res <- aggregate(value ~ ., x, sum)
   res$functions[res$functions == sentinel] <- NA_character_
   res
 }

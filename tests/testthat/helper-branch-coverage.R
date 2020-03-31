@@ -1,8 +1,4 @@
-do_code_coverage <- function(code, test) {
-  sort <- function(df) df[order(df$first_line, df$first_byte), ]
-
-  cc <- code_coverage(code, test)
-
+compute_coverage <- function(cc) {
   coverage <- cc
   coverage <- coverage[
     order(
@@ -38,4 +34,9 @@ do_code_coverage <- function(code, test) {
     expressions=expressions,
     branches=branches
   )
+}
+
+do_code_coverage <- function(code, test) {
+  cc <- code_coverage(code, test)
+  compute_coverage(cc)
 }
