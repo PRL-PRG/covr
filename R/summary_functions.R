@@ -198,7 +198,7 @@ print.coverage <- function(x, group = c("filename", "functions"), by = "line", i
   }
 
   if (include_branches) {
-    print(attr(x, "branches"))
+    print.branch_coverage(x, group=group)
   }
 
   invisible(x)
