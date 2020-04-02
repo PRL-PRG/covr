@@ -43,8 +43,17 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
   }
   else if (is.call(x)) {
     src_ref <- attr(x, "srcref") %||% impute_srcref(x, parent_ref)
+    ## `impute_srcref` also identifies branches for R control structures (for
+    ## , if, switch and while). This information is only need here to include
+    ## the given srcref into the global .branches environment.
+    for (i in seq_along(src_ref)) {
+      if (isTRUE(attr(src_ref[[i]], "branch"))) {
+        new_branch(src_ref[[i]], parent_functions)
+        attr(src_ref[[i]], "branch") <- NULL
+      }
+    }
     if ((identical(x[[1]], as.name("<-")) || identical(x[[1]], as.name("="))) && # nolint
-      (is.call(x[[3]]) && identical(x[[3]][[1]], as.name("function")))) {
+        (is.call(x[[3]]) && identical(x[[3]][[1]], as.name("function")))) {
       parent_functions <- c(parent_functions, as.character(x[[2]]))
     }
 
@@ -101,6 +110,20 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
 }
 
 .counters <- new.env(parent = emptyenv())
+.branches <- new.env(parent = emptyenv())
+
+#' initialize a new branch
+#'
+#' @param src_ref a [base::srcref()]
+#' @param parent_functions the functions that this srcref is contained in.
+#' @keywords internal
+new_branch <- function(src_ref, parent_functions) {
+  key <- key(src_ref)
+  .branches[[key]]$value <- 0
+  .branches[[key]]$srcref <- src_ref
+  .branches[[key]]$functions <- parent_functions
+  key
+}
 
 #' initialize a new counter
 #'
@@ -128,6 +151,7 @@ count <- function(key) {
 #' @keywords internal
 clear_counters <- function() {
   rm(envir = .counters, list = ls(envir = .counters))
+  rm(envir = .branches, list = ls(envir = .branches))
 }
 
 #' Generate a key for a  call

@@ -30,12 +30,12 @@ impute_srcref <- function(x, parent_ref) {
     line_offset <- 0
   }
 
-  make_srcref <- function(from, to = from) {
+  make_srcref <- function(from, to = from, branch=FALSE) {
     if (length(from) == 0) {
       return(NULL)
     }
 
-    srcref(
+    ref <- srcref(
       attr(parent_ref, "srcfile"),
       c(pd_child$line1[from] - line_offset,
         pd_child$col1[from],
@@ -47,6 +47,12 @@ impute_srcref <- function(x, parent_ref) {
         pd_child$line2[to]
       )
     )
+
+    if (branch) {
+      attr(ref, "branch") <- TRUE
+    }
+
+    ref
   }
 
   switch(
@@ -55,8 +61,8 @@ impute_srcref <- function(x, parent_ref) {
       src_ref <- list(
         NULL,
         make_srcref(3),
-        make_srcref(5),
-        make_srcref(7)
+        make_srcref(5, branch=TRUE),
+        make_srcref(7, branch=TRUE)
       )
       # the fourth component isn't used for an "if" without "else"
       src_ref[seq_along(x)]
@@ -67,7 +73,7 @@ impute_srcref <- function(x, parent_ref) {
         NULL,
         NULL,
         make_srcref(2),
-        make_srcref(3)
+        make_srcref(3, branch=TRUE)
       )
     },
 
@@ -75,7 +81,7 @@ impute_srcref <- function(x, parent_ref) {
       list(
         NULL,
         make_srcref(3),
-        make_srcref(5)
+        make_srcref(5, branch=TRUE)
       )
     },
 
@@ -108,14 +114,16 @@ impute_srcref <- function(x, parent_ref) {
 
       exprs <- lapply(exprs, ignore_dots)
 
-      c(list(NULL), lapply(exprs, make_srcref))
+      c(list(NULL),
+        list(make_srcref(3)),
+        lapply(exprs[-1], make_srcref, branch=TRUE))
     },
 
     NULL
   )
 }
 
-is_conditional_or_loop <- function(x) is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "else", "switch")
+is_conditional_or_loop <- function(x) is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "else", "switch", "while")
 
 package_parse_data <- new.env()
 
