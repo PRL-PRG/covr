@@ -1,3 +1,46 @@
+test_that("if in a switch", {
+  code <- "f <- function(x,y) switch(x, if (y>1) 3, { if (y>2) 4 })"
+  cc <- do_code_coverage(code, "f(3,2)")
+  expect_equal(cc$counters, c("x", "y>1", "3", "y>2", "4"))
+  expect_equal(cc$branch_counters, c("if (y>1) 3", "3", "", "{ if (y>2) 4 }", "4", "", ""))
+  expect_equal(cc$expressions$value, c(1, 0, 0, 0, 0))
+  expect_equal(cc$branches$value, c(0, 0, 0, 0, 0, 0, 1))
+})
+
+test_that("for loop in an if", {
+  code <- "f <- function(x) { if (x>0) for (i in x) if (x>1) x+1 }"
+  cc <- do_code_coverage(code, "f(1)")
+  expect_equal(cc$counters, c("x>0", "x", "x>1", "x+1"))
+  expect_equal(cc$branch_counters, c("for (i in x) if (x>1) x+1", "if (x>1) x+1", "x+1", "", "", ""))
+  expect_equal(cc$expressions$value, c(1, 1, 1, 0))
+  expect_equal(cc$branches$value, c(1, 1, 0, 0, 0, 1))
+})
+
+test_that("if in a for loops", {
+  code <- "f <- function(x) { for (i in x) if (x>1) x+1 }"
+  cc <- do_code_coverage(code, "f(0)")
+  expect_equal(cc$counters, c("x", "x>1", "x+1"))
+  expect_equal(cc$branch_counters, c("if (x>1) x+1", "x+1", "", ""))
+  expect_equal(cc$expressions$value, c(1, 1, 0))
+  expect_equal(cc$branches$value, c(1, 0, 0, 1))
+})
+
+test_that("nested for loops", {
+  code <- "f <- function(x) { for (i in x) for (i in 1:5) x+1 }"
+  cc <- do_code_coverage(code, "f(0)")
+  expect_equal(cc$counters, c("x", "1:5", "x+1"))
+  expect_equal(cc$branch_counters, c("for (i in 1:5) x+1", "x+1", "", ""))
+  expect_equal(cc$expressions$value, c(1, 1, 5))
+  expect_equal(cc$branches$value, c(1, 1, 0, 0))
+
+  code <- "f <- function(x) { for (i in x) { for (i in 1:5) x+1 } }"
+  cc <- do_code_coverage(code, "f(0)")
+  expect_equal(cc$counters, c("x", "1:5", "x+1"))
+  expect_equal(cc$branch_counters, c("{ for (i in 1:5) x+1 }", "x+1", "", ""))
+  expect_equal(cc$expressions$value, c(1, 1, 5))
+  expect_equal(cc$branches$value, c(1, 1, 0, 0))
+})
+
 test_that("function_coverage basic test", {
   g <- function(x) if (x) 3
   cc_raw <- function_coverage(g, quote(g(1)))
