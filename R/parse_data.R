@@ -244,7 +244,33 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     # WHILE cond body
     # pd_child:
     # WHILE ( cond ) body
-    x
+    cond_srcref <- make_srcref(3)
+    x[[2]] <- impute_branches(x[[2]], cond_srcref, parent_functions)
+
+    body_srcref <- make_branch_srcref(5)
+    body_branch <- new_branch(body_srcref, parent_functions, parent_ref, FALSE)
+
+    if (!is.null(x[[3]]))
+      x[[3]] <- impute_branches(x[[3]], body_srcref, parent_functions)
+
+    default_branch_srcref <- make_default_branch_srcref()
+    default_branch <- new_branch(default_branch_srcref, parent_functions, parent_ref, TRUE)
+
+    branch_guard_var <- as.name(paste0("__", .Call(covr_sexp_address, x)))
+    branch_guard_expr <- call("<-", branch_guard_var, TRUE)
+
+    branch_check_expr <-
+      call("if",
+           call("!", call("exists", as.character(branch_guard_var), inherits=FALSE)),
+           count_branch_call(default_branch)
+           )
+
+    x[[3]] <- call("{", count_branch_call(body_branch), branch_guard_expr, x[[3]])
+
+    attr(x[[3]], "srcref") <- list(NULL, NULL, NULL, body_srcref)
+    attr(x, "srcref") <- list(NULL, cond_srcref, NULL)
+
+    x <- call("{", x, branch_check_expr)
   } else if (fun == "repeat" && pd_child$token[1] == "REPEAT") {
     # x:
     # REPEAT body
