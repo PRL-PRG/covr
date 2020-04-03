@@ -1,6 +1,6 @@
 test_that("function_coverage basic test", {
   g <- function(x) if (x) 3
-  cc_raw <- function_coverage(g, quote(g(1)))
+  cc_raw <- function_coverage(g, quote(g(0)))
   cc <- compute_coverage(cc_raw)
   expect_equal(cc$counters, c("x", "3"))
   expect_equal(cc$branch_counters, c("3", ""))
@@ -1000,69 +1000,88 @@ test_that("branch coverage print", {
   expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
 })
 
-## ## test_that("one_line_for", {
-## ##   code <- "f <- function(x) {
-## ##        for(i in 1:10) { print(i) }
+test_that("two for in a row", {
+  code <- "f <- function(x) {
+       for(i in 1:2) { print(i) }
 
-## ##        for(j in 1:5) { print(j)}
-## ##      }"
+       for(j in 1:5) { print(j)}
+     }"
 
-## ##   test <- "f(1)"
+  test <- "f(1)"
 
-## ##   cc <- code_coverage(code, test)
-## ##   df <- tally_branch_coverage(cc)
+  cc_raw <- code_coverage(code, test)
+  cc <- compute_coverage(cc_raw)
 
-## ##   #there shall be two branches
-## ##   expect_equal(nrow(df), 2)
+  expect_equal(cc$counters, c("1:2", "print(i)", "1:5", "print(j)"))
+  expect_equal(cc$branch_counters, c("{ print(i) }", "", "{ print(j)}", ""))
+  expect_equal(cc$expressions$value, c(1, 2, 1, 5))
+  expect_equal(cc$branches$value, c(1, 0, 1, 0))
 
-## ##   ## 50%
-## ##   expect_equal((sum(df$value > 0) / length(df$value)) * 100, 100)
-## ## })
+  df <- tally_branch_coverage(cc_raw)
+  expect_equal(nrow(df), 4)
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 50)
+})
 
-## ## #######################################################
-## ## #             switch branch coverage test             #
-## ## #######################################################
-## ## test_that("simple_switch", {
-## ##   code <- "centre <- function(x, type) {
-## ##             switch(type,
-## ##                    mean = mean(x),
-## ##                    median = median(x),
-## ##                    trimmed = mean(x, trim = .1))
-## ## }"
+test_that("simple_switch", {
+  code <- "centre <- function(x, type) {
+            switch(type,
+                   mean = mean(x),
+                   median = median(x),
+                   trimmed = mean(x, trim = .1))
+}"
+  test <- "centre(c(1,2,3), \"mean\")"
 
-## ##   test <- "centre(c(1,2,3), \"mean\")"
+  cc_raw <- code_coverage(code, test)
+  cc <- compute_coverage(cc_raw)
 
-## ##   cc <- code_coverage(code, test)
-## ##   df <- tally_branch_coverage(cc)
+  expect_equal(cc$counters, c("type", "mean(x)", "median(x)", "mean(x, trim = .1)"))
+  expect_equal(cc$branch_counters, c("mean(x)", "median(x)", "mean(x, trim = .1)", ""))
+  expect_equal(cc$expressions$value, c(1, 1, 0, 0))
+  expect_equal(cc$branches$value, c(1, 0, 0, 0))
 
-## ##   #there shall be three branches
-## ##   expect_equal(nrow(df), 3)
+  df <- tally_branch_coverage(cc_raw)
+  expect_equal(nrow(df), 4)
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 25)
+})
 
-## ##   ## one of which is executed
-## ##   expect_equal(sum(df$value), 1)
-## ## })
+test_that("simple switch no curly", {
+  code <- "centre <- function(x, type)
+            switch(type,
+                   mean = mean(x),
+                   median = median(x),
+                   trimmed = mean(x, trim = .1))"
+  test <- "centre(c(1,2,3), \"mean\")"
 
-## ## test_that("if_switch_mix", {
-## ##   code <- "monthly_allowance <- function(x) {
-## ##              if(x == \"dog\") {
-## ##                print(\"5 bones\")
-## ##              } else if (x == \"cat\") {
-## ##                print(\"10 fish\")
-## ##              }
+  cc_raw <- code_coverage(code, test)
+  cc <- compute_coverage(cc_raw)
 
-## ##              switch(as.character(x),
-## ##                     \"hyeyoung\" = {print (\"1000 czk\")},
-## ##                     \"charlie\" = {print (\"500 czk\")})
-## ##   }"
+  expect_equal(cc$counters, c("type", "mean(x)", "median(x)", "mean(x, trim = .1)"))
+  expect_equal(cc$branch_counters, c("mean(x)", "median(x)", "mean(x, trim = .1)", ""))
+  expect_equal(cc$expressions$value, c(1, 1, 0, 0))
+  expect_equal(cc$branches$value, c(1, 0, 0, 0))
 
-## ##   test <- "monthly_allowance (\"dog\")"
+  df <- tally_branch_coverage(cc_raw)
+  expect_equal(nrow(df), 4)
+  expect_equal((sum(df$value > 0) / length(df$value)) * 100, 25)
+})
 
-## ##   cc <- code_coverage(code, test)
-## ##   df <- tally_branch_coverage(cc)
+test_that("if and switch", {
+  code <- "monthly_allowance <- function(x) {
+             if(x == \"dog\") {
+               print(\"5 bones\")
+             } else if (x == \"cat\") {
+               print(\"10 fish\")
+             }
 
-## ##   #there shall be five branches
-## ##   expect_equal(nrow(df), 5)
+             switch(as.character(x),
+                    \"hyeyoung\" = {print (\"1000 czk\")},
+                    \"charlie\" = {print (\"500 czk\")})
+  }"
+  test <- "monthly_allowance (\"dog\")"
 
-## ##   ## one of which is executed
-## ##   expect_equal(sum(df$value), 1)
-## ## })
+  cc <- code_coverage(code, test)
+  df <- tally_branch_coverage(cc)
+
+  expect_equal(nrow(df), 7)
+  expect_equal(sum(df$value), 2)
+})
