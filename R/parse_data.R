@@ -151,8 +151,10 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     then_srcref <- make_branch_srcref(5)
     then_branch <- new_branch(then_srcref, parent_functions, parent_ref, FALSE)
 
-    if (!is.null(x[[3]]))
+    if (!is.null(x[[3]])) {
       x[[3]] <- impute_branches(x[[3]], then_srcref, parent_functions)
+      then_srcref <- if (is_conditional_loop_or_block(x[[3]])) NULL else then_srcref
+    }
 
     x[[3]] <- call("{", count_branch_call(then_branch), x[[3]])
     attr(x[[3]], "srcref") <- list(NULL, NULL, then_srcref)
@@ -162,8 +164,10 @@ impute_branches <- function(x, parent_ref, parent_functions) {
       else_srcref <- make_branch_srcref(7)
       else_branch <- new_branch(else_srcref, parent_functions, parent_ref, FALSE)
 
-      if (!is.null(x[[4]]))
+      if (!is.null(x[[4]])) {
         x[[4]] <- impute_branches(x[[4]], else_srcref, parent_functions)
+        else_srcref <- if (is_conditional_loop_or_block(x[[4]])) NULL else else_srcref
+      }
 
       x[[4]] <- call("{", count_branch_call(else_branch), x[[4]])
       attr(x[[4]], "srcref") <- list(NULL, NULL, else_srcref)
@@ -192,15 +196,19 @@ impute_branches <- function(x, parent_ref, parent_functions) {
 
       make_srcref(1, pd=pd_expr)
     }
-    
+
     body_srcref <- make_branch_srcref(3)
     body_branch <- new_branch(body_srcref, parent_functions, parent_ref, FALSE)
 
-    if (!is.null(x[[3]]))
+    if (!is.null(x[[3]])) {
       x[[3]] <- impute_branches(x[[3]], cond_srcref, parent_functions)
+      cond_srcref <- if (is_conditional_loop_or_block(x[[3]])) NULL else cond_srcref
+    }
 
-    if (!is.null(x[[4]]))
+    if (!is.null(x[[4]])) {
       x[[4]] <- impute_branches(x[[4]], body_srcref, parent_functions)
+      body_srcref <- if (is_conditional_loop_or_block(x[[4]])) NULL else body_srcref
+    }
 
     default_branch_srcref <- make_default_branch_srcref()
     default_branch <- new_branch(default_branch_srcref, parent_functions, parent_ref, TRUE)
@@ -236,33 +244,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     # WHILE cond body
     # pd_child:
     # WHILE ( cond ) body
-    cond_srcref <- make_srcref(3)
-    x[[2]] <- impute_branches(x[[2]], cond_srcref, parent_functions)
-
-    body_srcref <- make_branch_srcref(5)
-    body_branch <- new_branch(body_srcref, parent_functions, parent_ref, FALSE)
-
-    if (!is.null(x[[3]]))
-      x[[3]] <- impute_branches(x[[3]], body_srcref, parent_functions)
-
-    default_branch_srcref <- make_default_branch_srcref()
-    default_branch <- new_branch(default_branch_srcref, parent_functions, parent_ref, TRUE)
-
-    branch_guard_var <- as.name(paste0("__", .Call(covr_sexp_address, x)))
-    branch_guard_expr <- call("<-", branch_guard_var, TRUE)
-
-    branch_check_expr <-
-      call("if",
-           call("!", call("exists", as.character(branch_guard_var), inherits=FALSE)),
-           count_branch_call(default_branch)
-           )
-
-    x[[3]] <- call("{", count_branch_call(body_branch), branch_guard_expr, x[[3]])
-
-    attr(x[[3]], "srcref") <- list(NULL, NULL, NULL, body_srcref)
-    attr(x, "srcref") <- list(NULL, cond_srcref, NULL)
-
-    x <- call("{", x, branch_check_expr)
+    x
   } else if (fun == "repeat" && pd_child$token[1] == "REPEAT") {
     # x:
     # REPEAT body
@@ -285,7 +267,8 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     cond_srcref <- make_srcref(3)
     # condition cannot be be NULL
     x[[2]] <- impute_branches(x[[2]], cond_srcref, parent_functions)
-    
+    cond_srcref <- if (is_conditional_loop_or_block(x[[2]])) NULL else cond_srcref
+
     # collect all, but the actual expression representing the switch itself
     exprs <- tail(which(pd_child$token == "expr"), n = -2)
 
@@ -338,8 +321,10 @@ impute_branches <- function(x, parent_ref, parent_functions) {
       srcref <- make_branch_srcref(expr)
       branch <- new_branch(srcref, parent_functions, parent_ref, expr %in% defaults)
 
-      if (!is.null(x[[i]]))
+      if (!is.null(x[[i]])) {
         x[[i]] <- impute_branches(x[[i]], srcref, parent_functions)
+        srcref <- if (is_conditional_loop_or_block(x[[i]])) NULL else srcref
+      }
 
       if (has_defaults) {
         new_expr <- call("{", count_branch_call(branch), x[[i]])
@@ -414,7 +399,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     # prevent multiple `{` nesting
     # this could happen if the only expression in within the current `{`
     # is one of the control structure for which we impute source references
-    if (length(x) == 2 && class(x[[2]]) == "{") {
+    if (length(x) == 2 && length(x[[2]]) > 1 && identical(x[[2]][[1]], as.name("{"))) {
       x <- x[[2]]
     }
   } else if (fun == "(") {
