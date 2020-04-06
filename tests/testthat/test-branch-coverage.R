@@ -1,3 +1,13 @@
+## test_that("print test", {
+##   code <- "f <- function(x,y) switch(x, if (y>1) 3, { if (y>2) 4 })"
+##   cc <- do_code_coverage(code, "f(3,2)")
+##   out <- capture.output(print(cc), type="message")
+##   browser()
+##   expect_equal(out, "")
+##   out_br <- capture.output(print(cc, include_branches=TRUE), type="message")
+##   expect_equal(out_br, "")
+## })
+
 test_that("if in a switch", {
   code <- "f <- function(x,y) switch(x, if (y>1) 3, { if (y>2) 4 })"
   cc <- do_code_coverage(code, "f(3,2)")
@@ -414,7 +424,27 @@ test_that("basic while", {
   expect_equal(cc$counters, c("x > 0", "x <- x - 1"))
   expect_equal(cc$branch_counters, c("{x <- x - 1}", ""))
   expect_equal(cc$expressions$value, c(2, 1))
-  expect_equal(cc$branches$value, c(1, 0)) 
+  expect_equal(cc$branches$value, c(1, 0))
+## print test
+##   Coverage: 0.00%
+## /tmp/RtmpKHkCFD/source.R29fb5534f659: 0.00%
+##   Branch Coverage: 50.00%
+## /tmp/RtmpKHkCFD/source.R29fb5534f659: 50.00%
+})
+
+test_that("basic while with more tests", {
+  code <- "f <- function(x) { while (x > 0) {x <- x - 1} }"
+
+  cc <- do_code_coverage(code, c("f(1)\n", "f(0)"))
+  expect_equal(cc$counters, c("x > 0", "x <- x - 1"))
+  expect_equal(cc$branch_counters, c("{x <- x - 1}", ""))
+  expect_equal(cc$expressions$value, c(3, 1))
+  expect_equal(cc$branches$value, c(1, 1))
+  ## print test TODO: branch coverage should be 100%
+##   Coverage: 100.00%
+## /tmp/RtmpKHkCFD/source.R29fb527baaa8: 100.00%
+##   Branch Coverage: 50.00%
+## /tmp/RtmpKHkCFD/source.R29fb527baaa8: 50.00%
 })
 
 test_that("basic while no { }", {
@@ -451,6 +481,11 @@ test_that("empty while", {
   expect_equal(cc$branch_counters, c("{}", ""))
   expect_equal(cc$expressions$value, c(1))
   expect_equal(cc$branches$value, c(0, 1))
+## print test
+##   Coverage: 100.00%
+## /tmp/RtmpKHkCFD/source.R29fb73fa08fa: 100.00%
+##   Branch Coverage: 50.00%
+## /tmp/RtmpKHkCFD/source.R29fb73fa08fa: 50.00%
 })
 
 test_that("while with break and next", {
