@@ -24,6 +24,11 @@ test_that("for loop in an if", {
   expect_equal(cc$branch_counters, c("for (i in x) if (x>1) x+1", "if (x>1) x+1", "x+1", "", "", ""))
   expect_equal(cc$expressions$value, c(1, 1, 1, 0))
   expect_equal(cc$branches$value, c(1, 1, 0, 0, 0, 1))
+  # print test: correct
+##   Coverage: 0.00%
+## /tmp/RtmpKHkCFD/source.R29fb23d55c10: 0.00%
+##   Branch Coverage: 50.00%
+## /tmp/RtmpKHkCFD/source.R29fb23d55c10: 50.00%
 })
 
 test_that("if in a for loops", {
@@ -281,6 +286,11 @@ test_that("nested if-else", {
   cc <- do_code_coverage(code, "f(3)")
   expect_equal(cc$expressions$value, c(1, 0, 1, 0, 1))
   expect_equal(cc$branches$value, c(0, 1, 0, 1))
+  # print test: correct
+##   Coverage: 0.00%
+## /tmp/RtmpKHkCFD/source.R29fb2c041019: 0.00%
+##   Branch Coverage: 50.00%
+## /tmp/RtmpKHkCFD/source.R29fb2c041019: 50.00%
 
   cc <- do_code_coverage(code, "f(1);f(2);f(3)")
   expect_equal(cc$expressions$value, c(3, 1, 2, 1, 1))
@@ -316,6 +326,11 @@ test_that("basic if-else wrapped in {}", {
   cc <- do_code_coverage(code, "f(TRUE);f(FALSE)")
   expect_equal(cc$expressions$value, c(2, 1, 1))
   expect_equal(cc$branches$value, c(1, 1))
+  # print test: correct
+##   Coverage: 100.00%
+## /tmp/RtmpKHkCFD/source.R29fb38cd7d43: 100.00%
+##   Branch Coverage: 100.00%
+## /tmp/RtmpKHkCFD/source.R29fb38cd7d43: 100.00%
 })
 
 test_that("basic if-else with branches wrapped in {}", {
@@ -333,6 +348,11 @@ test_that("basic if-else with branches wrapped in {}", {
   cc <- do_code_coverage(code, "f(TRUE);f(FALSE)")
   expect_equal(cc$expressions$value, c(2, 1, 1, 1, 1))
   expect_equal(cc$branches$value, c(1, 1))
+  # print test: correct
+##   Coverage: 100.00%
+## /tmp/RtmpKHkCFD/source.R29fb38cd7d43: 100.00%
+##   Branch Coverage: 100.00%
+## /tmp/RtmpKHkCFD/source.R29fb38cd7d43: 100.00%
 })
 
 test_that("basic implicit 2nd btanch in if-then", {
@@ -425,7 +445,8 @@ test_that("basic while", {
   expect_equal(cc$branch_counters, c("{x <- x - 1}", ""))
   expect_equal(cc$expressions$value, c(2, 1))
   expect_equal(cc$branches$value, c(1, 0))
-## print test
+  expect_equal((sum(cc$branches$value > 0) / length(cc$branches$value)) * 100, 50)
+## print test: correct
 ##   Coverage: 0.00%
 ## /tmp/RtmpKHkCFD/source.R29fb5534f659: 0.00%
 ##   Branch Coverage: 50.00%
@@ -440,11 +461,12 @@ test_that("basic while with more tests", {
   expect_equal(cc$branch_counters, c("{x <- x - 1}", ""))
   expect_equal(cc$expressions$value, c(3, 1))
   expect_equal(cc$branches$value, c(1, 1))
-  ## print test TODO: branch coverage should be 100%
+  expect_equal((sum(cc$branches$value > 0) / length(cc$branches$value)) * 100, 100)
+  ## print test: correct
 ##   Coverage: 100.00%
-## /tmp/RtmpKHkCFD/source.R29fb527baaa8: 100.00%
-##   Branch Coverage: 50.00%
-## /tmp/RtmpKHkCFD/source.R29fb527baaa8: 50.00%
+## /tmp/RtmpKHkCFD/source.R29fb75ddeadf: 100.00%
+##   Branch Coverage: 100.00%
+  ## /tmp/RtmpKHkCFD/source.R29fb75ddeadf: 100.00
 })
 
 test_that("basic while no { }", {
@@ -481,7 +503,8 @@ test_that("empty while", {
   expect_equal(cc$branch_counters, c("{}", ""))
   expect_equal(cc$expressions$value, c(1))
   expect_equal(cc$branches$value, c(0, 1))
-## print test
+  expect_equal((sum(cc$branches$value > 0) / length(cc$branches$value)) * 100, 50)
+## print test: correct
 ##   Coverage: 100.00%
 ## /tmp/RtmpKHkCFD/source.R29fb73fa08fa: 100.00%
 ##   Branch Coverage: 50.00%
@@ -495,7 +518,7 @@ test_that("while with break and next", {
   expect_equal(cc$branch_counters, c("{ if (x < 3) break else x <- x + 1; print(x) }", "break", "x <- x + 1", ""))
   expect_equal(cc$expressions$value, c(3, 2, 0, 2, 2))
   expect_equal(cc$branches$value, c(1, 0, 1, 0))
-                                        #without ambiguous branch
+ #without ambiguous branch
   code <- "f <- function(x) while (x < 5) { if (x < 3) {break} else {x <- x + 1; print(x)} }"
   cc <- do_code_coverage(code, "f(3)")
   expect_equal(cc$counters, c("x < 5", "x < 3", "break", "x <- x + 1", "print(x)"))
@@ -520,6 +543,11 @@ test_that("switch with drop through and default", {
   cc <- do_code_coverage(code, "f('d')")
   expect_equal(cc$expressions$value, c(1, 0, 1, 0))
   expect_equal(cc$branches$value, c(0, 1, 0))
+  #print test: correct
+##   Coverage: 0.00%
+## /tmp/RtmpKHkCFD/source.R29fb9add297: 0.00%
+##   Branch Coverage: 33.33%
+## /tmp/RtmpKHkCFD/source.R29fb9add297: 33.33%
 
   cc <- do_code_coverage(code, "f('c')")
   expect_equal(cc$expressions$value, c(1, 0, 0, 1))
@@ -573,6 +601,11 @@ test_that("switch with index", {
   cc <- do_code_coverage(code, "f(5)")
   expect_equal(cc$expressions$value, c(1, 0, 0, 0))
   expect_equal(cc$branches$value, c(0, 0, 0, 1))
+  # print test: correct
+##   Coverage: 0.00%
+## /tmp/RtmpKHkCFD/source.R29fb5508804d: 0.00%
+##   Branch Coverage: 25.00%
+## /tmp/RtmpKHkCFD/source.R29fb5508804d: 25.00%
 })
 
 ## ## test_that("implicit 2nd branch in if-then", {
@@ -1069,7 +1102,7 @@ test_that("nested for", {
   expect_equal(cc$branches$value, c(1, 0))
 })
 
-test_that("branch coverage print", {
+test_that("branch coverage result", {
   code <- "f <- function(x) {
        for(i in 1:10) {print(x)}}"
   test <- "f(1)"
