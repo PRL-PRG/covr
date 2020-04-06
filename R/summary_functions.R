@@ -243,7 +243,7 @@ print.branch_coverage <- function(x, group = c("filename", "functions"), ...) {
   br_filenames <- display_name(br_c)
   no_branch <- unique(filenames[!(filenames %in% br_filenames)])
 
-  if(dim(df_br)[1] == 0 & dim(df_br)[2] == 0) {
+  if(dim(df_br)[1] == 0) {
     message(crayon::bold(paste(collapse = " ",
                                c(attr(x, "package")$package, to_title(attr(x, "type")), "Branch Coverage: N/A"))))
   } else {
