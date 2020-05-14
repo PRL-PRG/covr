@@ -257,7 +257,7 @@ package_coverage <- function(path = ".",
       domain = NA)
       line_exclusions <- exclusions
   }
-
+  browser()
   pkg <- as_package(path)
 
   if (missing(type)) {
