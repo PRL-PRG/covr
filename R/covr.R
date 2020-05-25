@@ -257,7 +257,7 @@ package_coverage <- function(path = ".",
       domain = NA)
       line_exclusions <- exclusions
   }
-  browser()
+
   pkg <- as_package(path)
 
   if (missing(type)) {
@@ -380,20 +380,22 @@ package_coverage <- function(path = ".",
   # read tracing files
   trace_files <- list.files(path = tmp_lib, pattern = "^covr_trace_[^/]+$", full.names = TRUE)
   coverage <- merge_coverage(trace_files)
-  if (!uses_icc()) {
-    res <- run_gcov(pkg$path, quiet = quiet)
-  } else {
-    res <- run_icov(pkg$path, quiet = quiet)
-  }
 
   trace_files <- list.files(path = tmp_lib, pattern = "^covr_branch_trace_[^/]+$", full.names = TRUE)
   branches <- merge_coverage(trace_files)
+
+  if (!uses_icc()) {
+    res <- run_gcov(pkg$path, quiet = quiet)
+    res_b <- run_gcov(pkg$path, quiet = quiet, gcov_br = TRUE)
+  } else {
+    res <- run_icov(pkg$path, quiet = quiet)
+  }
 
   coverage <- structure(c(coverage, res),
       class = "coverage",
       package = pkg,
       relative = relative_path,
-      branches = as.list(branches))
+      branches = c(branches, res_b))
 
   if (!clean) {
     attr(coverage, "library") <- tmp_lib

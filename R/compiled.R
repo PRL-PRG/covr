@@ -1,5 +1,5 @@
 # this does not handle LCOV_EXCL_START ect.
-parse_gcov <- function(file, package_path = "") {
+parse_gcov <- function(file, package_path = "", br = FALSE) {
   if (!file.exists(file)) {
     return(NULL)
   }
@@ -22,20 +22,35 @@ parse_gcov <- function(file, package_path = "") {
     ":"
   )
 
+  re_b <- rex::rex("branch  ",
+                   capture(name = "branch", digit),   ##TODO: digit or digits 
+                   " taken ",
+                   capture(name = "coverage", digits)
+                   )
+
   matches <- rex::re_matches(lines, re)
+
+  if(br) {
+    matches_b <- rex::re_matches(lines, re_b)
+    matches <- cbind(matches_b, line = matches$line, stringsAsFactors = FALSE)
+
+    matches <- matches %>%
+                 tidyr::fill(line)
+  }
 
   # Exclude lines with no match to the pattern
   lines <- lines[!is.na(matches$coverage)]
   matches <- na.omit(matches)
-
   # gcov lines which have no coverage
   matches$coverage[matches$coverage == "#####"] <- 0 # nolint
 
   # gcov lines which have parse error, so make untracked
   matches$coverage[matches$coverage == "====="] <- "-"
 
-  coverage_lines <- matches$line != "0" & matches$coverage != "-"
-  matches <- matches[coverage_lines, ]
+  if(!br) {
+    coverage_lines <- matches$line != "0" & matches$coverage != "-"
+    matches <- matches[coverage_lines, ]
+  }
 
   values <- as.numeric(matches$coverage)
 
@@ -46,7 +61,11 @@ parse_gcov <- function(file, package_path = "") {
   # There are no functions for gcov, so we set everything to NA
   functions <- rep(NA_character_, length(values))
 
-  line_coverages(source_file, matches, values, functions)
+  if(br) {
+    br_coverages(source_file, matches, values, functions)
+  } else {
+    line_coverages(source_file, matches, values, functions)
+  }
 }
 
 clean_gcov <- function(path) {
@@ -62,7 +81,8 @@ clean_gcov <- function(path) {
 
 run_gcov <- function(path, quiet = TRUE,
                       gcov_path = getOption("covr.gcov", ""),
-                      gcov_args = getOption("covr.gcov_args", NULL)) {
+                      gcov_args = getOption("covr.gcov_args", NULL),
+                      gcov_br = FALSE) {
   if (!nzchar(gcov_path)) {
     return()
   }
@@ -74,12 +94,17 @@ run_gcov <- function(path, quiet = TRUE,
 
   gcov_inputs <- list.files(path, pattern = rex::rex(".gcno", end), recursive = TRUE, full.names = TRUE)
   run_gcov_one <- function(src) {
+    if(gcov_br) {
+      args = c(gcov_args, src, "-p", "-b", "-c", "-o", dirname(src))
+    } else {
+      args = c(gcov_args, src, "-p", "-o", dirname(src))
+    }
     system_check(gcov_path,
-      args = c(gcov_args, src, "-p", "-o", dirname(src)),
+      args = args,
       quiet = quiet, echo = !quiet)
     gcov_outputs <- list.files(path, pattern = rex::rex(".gcov", end), recursive = TRUE, full.names = TRUE)
     on.exit(unlink(gcov_outputs))
-    unlist(lapply(gcov_outputs, parse_gcov, package_path = path), recursive = FALSE)
+    unlist(lapply(gcov_outputs, parse_gcov, package_path = path, br = gcov_br), recursive = FALSE)
   }
 
   withr::with_dir(src_path, {
@@ -109,5 +134,32 @@ line_coverages <- function(source_file, matches, values, functions) {
   names(res) <- lapply(res, function(x) key(x$srcref))
 
   class(res) <- "line_coverages"
+
   res
 }
+
+br_coverages <- function(source_file, matches, values, functions) {
+
+  src_file <- srcfilecopy(source_file, readLines(source_file))
+
+  line_lengths <- vapply(src_file$lines[as.numeric(matches$line)], nchar, numeric(1))
+
+  res <- Map(function (br, line, length, value, func) {
+    src_ref <- srcref(src_file, c(line, 1, line, length))
+    res <- list(srcref = src_ref, value = value, functions = func, parent = NULL, pos = 1L, default = as.logical(br))
+    class(res) <- "br_coverage"
+    res},
+    matches$branch, matches$line, line_lengths, values, functions)
+
+  if (!length(res)) {
+    return(NULL)
+  }
+
+  names(res) <- lapply(res, function(x) key(x$srcref))
+
+  class(res) <- "br_coverages"
+
+  res
+}
+
+
