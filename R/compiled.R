@@ -171,5 +171,3 @@ br_coverages <- function(source_file, matches, values, functions) {
 
   res
 }
-
-
