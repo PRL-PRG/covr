@@ -23,19 +23,29 @@ parse_gcov <- function(file, package_path = "", br = FALSE) {
   )
 
   re_b <- rex::rex("branch  ",
-                   capture(name = "branch", digit),   ##TODO: digit or digits 
+                   capture(name = "branch", digits),
                    " taken ",
                    capture(name = "coverage", digits)
                    )
+
+  re_b2 <- rex::rex("branch  ",
+                    capture(name = "branch", digits),
+                    " ",
+                    capture(name = "coverage", "never executed")
+                    )
 
   matches <- rex::re_matches(lines, re)
 
   if(br) {
     matches_b <- rex::re_matches(lines, re_b)
-    matches <- cbind(matches_b, line = matches$line, stringsAsFactors = FALSE)
+    matches_b2 <- rex::re_matches(lines, re_b2)
+    matches_b <- cbind(matches_b, line = matches$line, stringsAsFactors = FALSE)
+    matches_b2 <- cbind(matches_b2, line = matches$line, stringsAsFactors = FALSE)
+
+    matches <- rbind(matches_b, matches_b2)
 
     matches <- matches %>%
-                 tidyr::fill(line)
+      tidyr::fill(line)
   }
 
   # Exclude lines with no match to the pattern
@@ -43,7 +53,7 @@ parse_gcov <- function(file, package_path = "", br = FALSE) {
   matches <- na.omit(matches)
   # gcov lines which have no coverage
   matches$coverage[matches$coverage == "#####"] <- 0 # nolint
-
+  matches$coverage[matches$coverage == "never executed"] <- 0
   # gcov lines which have parse error, so make untracked
   matches$coverage[matches$coverage == "====="] <- "-"
 
