@@ -39,13 +39,13 @@ parse_gcov <- function(file, package_path = "", br = FALSE) {
   if(br) {
     matches_b <- rex::re_matches(lines, re_b)
     matches_b2 <- rex::re_matches(lines, re_b2)
+
     matches_b <- cbind(matches_b, line = matches$line, stringsAsFactors = FALSE)
     matches_b2 <- cbind(matches_b2, line = matches$line, stringsAsFactors = FALSE)
 
     matches <- rbind(matches_b, matches_b2)
 
-    matches <- matches %>%
-      tidyr::fill(line)
+    matches <- fill(matches)
   }
 
   # Exclude lines with no match to the pattern
@@ -170,4 +170,16 @@ br_coverages <- function(source_file, matches, values, functions) {
   class(res) <- "br_coverages"
 
   res
+}
+
+fill <- function(m) {
+  n <- length(m$line)
+  for(i in 1:n) {
+    tmp <- m$line[i]
+    while(is.na(m$line[i+1]) & i <= n-1) {
+      m$line[i+1] <- tmp
+      i <- i + 1
+    }
+  }
+  m
 }
