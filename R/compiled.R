@@ -1,5 +1,5 @@
 # this does not handle LCOV_EXCL_START ect.
-parse_gcov <- function(file, package_path = "", br = FALSE) {
+parse_gcov <- function(file, package_path = "", gcov_br = FALSE) {
   if (!file.exists(file)) {
     return(NULL)
   }
@@ -13,6 +13,19 @@ parse_gcov <- function(file, package_path = "", br = FALSE) {
   # If the source file does not start with the package path or does not exist ignore it.
   if (!file.exists(source_file) || !grepl(rex::rex(start, package_path), source_file)) {
     return(NULL)
+  }
+
+  # copies the last line number in the matches data frame to fill in the line number of branches
+  fill_line <- function(m) {
+    n <- length(m$line)
+    for(i in 1:n) {
+      tmp <- m$line[i]
+      while(is.na(m$line[i+1]) & i <= n-1) {
+        m$line[i+1] <- tmp
+        i <- i + 1
+      }
+    }
+    m
   }
 
   re <- rex::rex(any_spaces,
@@ -104,17 +117,13 @@ run_gcov <- function(path, quiet = TRUE,
 
   gcov_inputs <- list.files(path, pattern = rex::rex(".gcno", end), recursive = TRUE, full.names = TRUE)
   run_gcov_one <- function(src) {
-    if(gcov_br) {
-      args = c(gcov_args, src, "-p", "-b", "-c", "-o", dirname(src))
-    } else {
-      args = c(gcov_args, src, "-p", "-o", dirname(src))
-    }
+    args = c(gcov_args, src, "-p", if(gcov_br) "-b", if(gcov_br) "-c", "-o", dirname(src))
     system_check(gcov_path,
       args = args,
       quiet = quiet, echo = !quiet)
     gcov_outputs <- list.files(path, pattern = rex::rex(".gcov", end), recursive = TRUE, full.names = TRUE)
     on.exit(unlink(gcov_outputs))
-    unlist(lapply(gcov_outputs, parse_gcov, package_path = path, br = gcov_br), recursive = FALSE)
+    unlist(lapply(gcov_outputs, parse_gcov, package_path = path, gcov_br = gcov_br), recursive = FALSE)
   }
 
   withr::with_dir(src_path, {
@@ -148,16 +157,18 @@ line_coverages <- function(source_file, matches, values, functions) {
   res
 }
 
-br_coverages <- function(source_file, matches, values, functions) {
-
+gcov_br_coverages <- function(source_file, matches, values, functions) {
   src_file <- srcfilecopy(source_file, readLines(source_file))
 
   line_lengths <- vapply(src_file$lines[as.numeric(matches$line)], nchar, numeric(1))
 
   res <- Map(function (br, line, length, value, func) {
+    # source reference is approximated by the approximating line number
+    # the line number corresponds to the first line of each control structure
+    # each branch will be assigned the same line number
     src_ref <- srcref(src_file, c(line, 1, line, length))
     res <- list(srcref = src_ref, value = value, functions = func, parent = NULL, pos = 1L, default = as.logical(br))
-    class(res) <- "br_coverage"
+    class(res) <- "gcov_br_coverage"
     res},
     matches$branch, matches$line, line_lengths, values, functions)
 
@@ -167,19 +178,7 @@ br_coverages <- function(source_file, matches, values, functions) {
 
   names(res) <- lapply(res, function(x) key(x$srcref))
 
-  class(res) <- "br_coverages"
+  class(res) <- "gcov_br_coverages"
 
   res
-}
-
-fill <- function(m) {
-  n <- length(m$line)
-  for(i in 1:n) {
-    tmp <- m$line[i]
-    while(is.na(m$line[i+1]) & i <= n-1) {
-      m$line[i+1] <- tmp
-      i <- i + 1
-    }
-  }
-  m
 }

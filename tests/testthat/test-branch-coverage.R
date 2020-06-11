@@ -1,13 +1,3 @@
-## test_that("print test", {
-##   code <- "f <- function(x,y) switch(x, if (y>1) 3, { if (y>2) 4 })"
-##   cc <- do_code_coverage(code, "f(3,2)")
-##   out <- capture.output(print(cc), type="message")
-##   browser()
-##   expect_equal(out, "")
-##   out_br <- capture.output(print(cc, include_branches=TRUE), type="message")
-##   expect_equal(out_br, "")
-## })
-
 test_that("if in a switch", {
   code <- "f <- function(x,y) switch(x, if (y>1) 3, { if (y>2) 4 })"
   cc <- do_code_coverage(code, "f(3,2)")
@@ -24,11 +14,6 @@ test_that("for loop in an if", {
   expect_equal(cc$branch_counters, c("for (i in x) if (x>1) x+1", "if (x>1) x+1", "x+1", "", "", ""))
   expect_equal(cc$expressions$value, c(1, 1, 1, 0))
   expect_equal(cc$branches$value, c(1, 1, 0, 0, 0, 1))
-  # print test: correct
-##   Coverage: 0.00%
-## /tmp/RtmpKHkCFD/source.R29fb23d55c10: 0.00%
-##   Branch Coverage: 50.00%
-## /tmp/RtmpKHkCFD/source.R29fb23d55c10: 50.00%
 })
 
 test_that("if in a for loops", {
