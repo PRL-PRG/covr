@@ -106,6 +106,7 @@ test_that("functions with curly curly syntax are traced correctly", {
 
   # behavior not changed by covr
   my_capture2 <- trace_calls(my_capture)
+  browser()
   expect_equal(my_capture2(5 == 1), rlang::quo(5 == 1))
 
   # outer code traced traced with ({  })

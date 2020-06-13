@@ -41,7 +41,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     ) &
     pd$col1 == parent_ref[[2L]] &
     pd$col2 == parent_ref[[4L]] &
-    pd$token == "expr"
+    pd$token %in% c("expr", "equal_assign")
 
   pd_expr_idx <- which(pd_expr)
 
@@ -119,6 +119,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
   }
 
   fun <- as.character(x[[1]])[1]
+  browser()
 
   if ((fun %in% c("!", "~", "~", "+", "-", "*", "/", "^", "<", ">", ":=", "<=",
                  ">=", "==", "!=", "&", "&&", "|", "||", "$", "[", "[[", ":")) ||
@@ -132,12 +133,23 @@ impute_branches <- function(x, parent_ref, parent_functions) {
       if (!is.null(x[[1]]))
         x[[1]] <- impute_branches(x[[1]], make_srcref(2), parent_functions)
     }
+  ## } else if ((fun == "<-" && pd_child$token[2] == "LEFT_ASSIGN") || fun == "=") {
   } else if (fun == "<-" || fun == "=") {
-    if (!is.null(x[[3]]))
+    ## browser()
+    # left hand side
+    if (pd_child$token[1] == "expr" && !is.null(x[[2]]))
+      x[[2]] <- impute_branches(x[[2]], make_srcref(1), parent_functions)
+    # right hand side
+    if (pd_child$token[3] == "expr" && !is.null(x[[3]]))
       x[[3]] <- impute_branches(x[[3]], make_srcref(3), parent_functions)
   } else if (fun == "->") {
-    if (!is.null(x[[2]]))
-      x[[2]] <- impute_branches(x[[2]], make_srcref(1), parent_functions)
+    browser()
+    # left hand side
+    if (pd_child$token[1] == "expr" && !is.null(x[[3]]))
+      x[[3]] <- impute_branches(x[[3]], make_srcref(1), parent_functions)
+    # right hand side
+    if (pd_child$token[3] == "expr" && !is.null(x[[2]]))
+      x[[2]] <- impute_branches(x[[2]], make_srcref(3), parent_functions)
   } else if (fun == "if") {
     # expression:
     # IF cond then_branch else_branch
@@ -352,7 +364,7 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     } else {
       integer(0)
     }
-    exprs <- which(pd_child$token == "expr")
+    exprs <- which(pd_child$token %in% c("expr", "equal_assign"))
 
     stopifnot(length(args) == length(exprs) - 1)
 
@@ -393,9 +405,13 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     refs <- attr(x, "srcref")
     stopifnot(length(x) == length(refs))
     for (i in seq_along(x)[-1]) {
-      if (!is.null(x[[i]]))
+      if (!is.null(x[[i]])) {
         x[[i]] <- impute_branches(x[[i]], refs[[i]], parent_functions)
+        if (is_conditional_loop_or_block(x[[i]])) refs[i] <- list(NULL)
+      }
     }
+    ## browser()
+    attr(x, "srcref") <- c(NULL, refs[-1])
     # prevent multiple `{` nesting
     # this could happen if the only expression in within the current `{`
     # is one of the control structure for which we impute source references
@@ -415,7 +431,12 @@ impute_branches <- function(x, parent_ref, parent_functions) {
     # the arguments must be done manually as some can be empty, e.g. f(.=)
     arg_idx <- 2
     for (i in seq(3, nrow(pd_child)-1)) {
+      browser(expr=arg_idx > length(x))
       token <- pd_child$token[i]
+      ## print("***********")
+      ## print(token)
+      browser(expr=is.na(token))
+      # TODO equal_assign
       if (token == "expr") {
         if (!is.null(x[[arg_idx]]))
           x[[arg_idx]] <- impute_branches(x[[arg_idx]], make_srcref(i), parent_functions)
@@ -437,6 +458,7 @@ is_conditional_loop_or_block <- function(x) {
 package_parse_data <- new.env()
 
 get_parse_data <- function(srcfile) {
+  ## browser()
   if (length(package_parse_data) == 0) {
     lines <- getSrcLines(srcfile, 1L, Inf)
     res <- lapply(split_on_line_directives(lines),

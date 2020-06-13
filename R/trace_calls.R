@@ -89,7 +89,7 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
       fun_body <- body(x)
     }
 
-    if (!is.null(attr(x, "srcref")) &&
+    if (!is.null(src_ref) &&
           (is.symbol(fun_body) ||
              !is_conditional_loop_or_block(fun_body))) {
       # this is the case when the function does not start with neither { nor
