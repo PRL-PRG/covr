@@ -49,7 +49,7 @@ parse_gcov <- function(file, package_path = "", gcov_br = FALSE) {
 
   matches <- rex::re_matches(lines, re)
 
-  if(br) {
+  if(gcov_br) {
     matches_b <- rex::re_matches(lines, re_b)
     matches_b2 <- rex::re_matches(lines, re_b2)
 
@@ -58,7 +58,7 @@ parse_gcov <- function(file, package_path = "", gcov_br = FALSE) {
 
     matches <- rbind(matches_b, matches_b2)
 
-    matches <- fill(matches)
+    matches <- fill_line(matches)
   }
 
   # Exclude lines with no match to the pattern
@@ -70,7 +70,7 @@ parse_gcov <- function(file, package_path = "", gcov_br = FALSE) {
   # gcov lines which have parse error, so make untracked
   matches$coverage[matches$coverage == "====="] <- "-"
 
-  if(!br) {
+  if(!gcov_br) {
     coverage_lines <- matches$line != "0" & matches$coverage != "-"
     matches <- matches[coverage_lines, ]
   }
@@ -84,8 +84,8 @@ parse_gcov <- function(file, package_path = "", gcov_br = FALSE) {
   # There are no functions for gcov, so we set everything to NA
   functions <- rep(NA_character_, length(values))
 
-  if(br) {
-    br_coverages(source_file, matches, values, functions)
+  if(gcov_br) {
+    gcov_br_coverages(source_file, matches, values, functions)
   } else {
     line_coverages(source_file, matches, values, functions)
   }
@@ -162,12 +162,12 @@ gcov_br_coverages <- function(source_file, matches, values, functions) {
 
   line_lengths <- vapply(src_file$lines[as.numeric(matches$line)], nchar, numeric(1))
 
-  res <- Map(function (br, line, length, value, func) {
+  res <- Map(function (gcov_br, line, length, value, func) {
     # source reference is approximated by the approximating line number
     # the line number corresponds to the first line of each control structure
     # each branch will be assigned the same line number
     src_ref <- srcref(src_file, c(line, 1, line, length))
-    res <- list(srcref = src_ref, value = value, functions = func, parent = NULL, pos = 1L, default = as.logical(br))
+    res <- list(srcref = src_ref, value = value, functions = func, parent = NULL, pos = 1L, default = as.logical(gcov_br))
     class(res) <- "gcov_br_coverage"
     res},
     matches$branch, matches$line, line_lengths, values, functions)
