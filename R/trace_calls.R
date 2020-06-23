@@ -130,12 +130,12 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
 #' @param src_ref a [base::srcref()]
 #' @param parent_functions the functions that this srcref is contained in.
 #' @keywords internal
-new_branch <- function(srcref, parent_functions, parent_srcref, default) {
+new_branch <- function(srcref, parent_functions, parent_srcref, default, value = 0) {
   parent_key <- key(parent_srcref)
   pos <- sum(startsWith(ls(.branches), parent_key)) + 1L
   key <- paste0(collapse="-", c(parent_key, pos))
 
-  .branches[[key]]$value <- 0
+  .branches[[key]]$value <- value
   .branches[[key]]$srcref <- srcref
   .branches[[key]]$functions <- parent_functions
   .branches[[key]]$parent <- parent_srcref

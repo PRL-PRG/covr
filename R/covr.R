@@ -386,7 +386,7 @@ package_coverage <- function(path = ".",
 
   if (!uses_icc()) {
     res <- run_gcov(pkg$path, quiet = quiet)
-    res_b <- run_gcov(pkg$path, quiet = quiet, gcov_br = TRUE)
+    ## res_b <- run_gcov(pkg$path, quiet = quiet)
   } else {
     res <- run_icov(pkg$path, quiet = quiet)
   }
@@ -395,7 +395,7 @@ package_coverage <- function(path = ".",
       class = "coverage",
       package = pkg,
       relative = relative_path,
-      branches = c(branches, res_b))
+      branches = c(branches, as.list(.branches)))
 
   if (!clean) {
     attr(coverage, "library") <- tmp_lib
