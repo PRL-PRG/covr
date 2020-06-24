@@ -43,19 +43,16 @@ parse_gcov <- function(file, package_path = "") {
 
   matches <- rex::re_matches(lines, re)
   matches <- fill_lines(matches)
-
   matches_b <- rex::re_matches(lines, re_b)
   matches_b <- cbind(matches_b, line = matches$line)
 
   # Exclude lines with no match to the pattern
-  lines_b <- lines[!is.na(matches_b$coverage)]
-  matches_b <- na.omit(matches_b)
-
   lines <- lines[!is.na(matches$coverage)]
   matches <- na.omit(matches)
+  matches_b <- na.omit(matches_b)
   # gcov lines which have no coverage
   matches$coverage[matches$coverage == "#####"] <- 0 # nolint
-  # gcov lines which have parse error, so make untracked
+  # gcov lines which have parse error, so make unfrocked
   matches$coverage[matches$coverage == "====="] <- "-"
   matches_b$coverage[matches_b$coverage == "never executed"] <- 0
 
@@ -74,7 +71,6 @@ parse_gcov <- function(file, package_path = "") {
   functions_b <- rep(NA_character_, length(values_b))
 
   gcov_br_coverages(source_file, matches_b, values_b, functions_b)
-
   line_coverages(source_file, matches, values, functions)
 }
 
@@ -148,20 +144,23 @@ gcov_br_coverages <- function(source_file, matches, values, functions) {
 
   line_lengths <- vapply(src_file$lines[as.numeric(matches$line)], nchar, numeric(1))
 
-  fortest <- function (br, line, length, value, func) {
+  res <- Map(function (gcov_br, line, length, value, func) {
+    # source reference is approximated by the approximating line number
+    # the line number corresponds to the first line of each control structure
+    # each branch will be assigned the same line number
     src_ref <- srcref(src_file, c(line, 1, line, length))
-    new_branch(value = value, srcref = src_ref, parent_functions = func, parent_srcref = src_ref, isTRUE(br != 0))
-  }
-
-  res <- Map(fortest,
+    key <- new_branch(srcref = src_ref, parent_functions =func, parent_srcref = src_ref, isTRUE(gcov_br != 0), value = value)
+    class(.branches[[key]]) <- "gcov_br_coverage"
+    key},
     matches$branch, matches$line, line_lengths, values, functions)
 
   if (!length(res)) {
     return(NULL)
   }
-  ## names(res) <- lapply(res, function(x) key(x$srcref))
 
-  ## class(res) <- "gcov_br_coverages"
+  names(res) <- lapply(res, function(x) x)
 
-  ## res
+  class(res) <- "gcov_br_coverages"
+
+  res
 }

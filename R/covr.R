@@ -385,7 +385,12 @@ package_coverage <- function(path = ".",
   branches <- merge_coverage(trace_files)
 
   if (!uses_icc()) {
+<<<<<<< HEAD
     res <- run_gcov(pkg$path, quiet = quiet, clean = clean)
+=======
+    res <- run_gcov(pkg$path, quiet = quiet)
+    ## res_b <- run_gcov(pkg$path, quiet = quiet)
+>>>>>>> tmp
   } else {
     res <- run_icov(pkg$path, quiet = quiet)
   }
