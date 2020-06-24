@@ -21,7 +21,7 @@ tally_coverage <- function(x, by = c("line", "expression")) {
 
   # Rarely something goes wrong with the source references and we get all NAs
   # for them, so we omit them here
-  df <- as.data.frame(x)
+  df <- as.data.frame(x, sort=FALSE)
 
   all_na_rows <- rowSums(is.na(df)) == ncol(df)
   df <- df[!all_na_rows, ]
@@ -198,7 +198,7 @@ print.coverage <- function(x, group = c("filename", "functions"), by = "line", i
   }
 
   if (include_branches) {
-    print(attr(x, "branches"))
+    print.branch_coverage(x, group=group)
   }
 
   invisible(x)
@@ -243,7 +243,7 @@ print.branch_coverage <- function(x, group = c("filename", "functions"), ...) {
   br_filenames <- display_name(br_c)
   no_branch <- unique(filenames[!(filenames %in% br_filenames)])
 
-  if(dim(df_br)[1] == 0 & dim(df_br)[2] == 0) {
+  if(dim(df_br)[1] == 0) {
     message(crayon::bold(paste(collapse = " ",
                                c(attr(x, "package")$package, to_title(attr(x, "type")), "Branch Coverage: N/A"))))
   } else {
