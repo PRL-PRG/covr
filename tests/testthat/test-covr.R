@@ -41,8 +41,8 @@ test_that("function_coverage return last expr", {
       vdapply(function_coverage("fun", env = environment(fun), ...), "[[", "value")
     }
 
-    expect_equal(as.numeric(cov_fun()), c(0L, 0L))
-    expect_equal(as.numeric(cov_fun(fun())), c(1L, 1L))
+    expect_equal(as.numeric(cov_fun()), c(0L, 0L, 0L))
+    expect_equal(as.numeric(cov_fun(fun())), c(1L, 1L, 1L))
   })
 })
 

@@ -1,7 +1,7 @@
 #' @importFrom utils getParseData getSrcref tail
 impute_srcref <- function(x, parent_ref) {
-  if (!is_conditional_or_loop(x)) return(NULL)
   if (is.null(parent_ref)) return(NULL)
+  if (!is.call(x)) return(NULL)
 
   pd <- get_tokens(parent_ref)
   pd_expr <-
@@ -49,86 +49,130 @@ impute_srcref <- function(x, parent_ref) {
     )
   }
 
-  switch(
-    as.character(x[[1L]]),
-    "if" = {
-      src_ref <- list(
-        NULL,
-        make_srcref(3),
-        make_srcref(5),
-        make_srcref(7)
-      )
-      # the fourth component isn't used for an "if" without "else"
-      src_ref[seq_along(x)]
-    },
+  fun <- as.character(x[[1]])[1]
 
-    "for" = {
-      list(
-        NULL,
-        NULL,
-        make_srcref(2),
-        make_srcref(3)
-      )
-    },
+  if (fun == "function") {
+    params <- x[[2]]
+    params_srcref <- NULL
+    if (length(params) > 0) {
+      # all params have to have an srcref - even if it is NULL
+      params_srcref <- rep(list(NULL), length(params))
 
-    "while" = {
-      list(
-        NULL,
-        make_srcref(3),
-        make_srcref(5)
-      )
-    },
+      # in `function(a,b=a)`, both a and b are symbols, but we only
+      # care about b as that one has expr in parse_data
+      params_is_default <- sapply(params, function(y) !is.symbol(y) || as.character(y) != "")
+      params_default <- which(params_is_default)
+      # we rely on ordering: the default params and exprs from
+      # parsing data shall be aligned
+      params_expr <- which(pd_child$token == "expr")
+      # last expr is the body of the function
+      params_expr <- head(params_expr, -1)
 
-    "switch" = {
-      exprs <- tail(which(pd_child$token == "expr"), n = -1)
+      stopifnot(length(params_default) == length(params_expr))
 
-      # Add NULLs for drop through conditions
-      token <- pd_child$token
-      next_token <- c(tail(token, n = -1), NA_character_)
-      drops <- which(token == "EQ_SUB" & next_token != "expr")
-
-      exprs <- sort(c(exprs, drops))
-
-      ignore_drop_through <- function(x) {
-        if (x %in% drops) {
-          return(NULL)
-        }
-        x
+      for (i in seq_along(params_default)) {
+        idx <- params_default[i]
+        params_srcref[[idx]] <- attr(params[[idx]], "srcref") %||% make_srcref(params_expr[i])
       }
+    }
 
-      exprs <- lapply(exprs, ignore_drop_through)
+    body_srcref <- attr(x[[3]], "srcref") %||% make_srcref(nrow(pd_child))
 
-      # Don't create srcrefs for ... conditions
-      ignore_dots <- function(x) {
-        if (identical("...", pd$text[pd$parent == pd_child$id[x]])) {
-          return(NULL)
-        }
-        x
+    list(
+      NULL,
+      params_srcref,
+      body_srcref,
+      NULL
+    )
+  } else if (fun == "if") {
+    src_ref <- list(
+      NULL,
+      make_srcref(3),
+      make_srcref(5),
+      make_srcref(7)
+    )
+    # the fourth component isn't used for an "if" without "else"
+    src_ref[seq_along(x)]
+  } else if (fun == "for") {
+    list(
+      NULL,
+      NULL,
+      make_srcref(2),
+      make_srcref(3)
+    )
+  } else if (fun == "while") {
+    list(
+      NULL,
+      make_srcref(3),
+      make_srcref(5)
+    )
+  } else if (fun == "switch") {
+    exprs <- tail(which(pd_child$token == "expr"), n = -1)
+
+    # Add NULLs for drop through conditions
+    token <- pd_child$token
+    next_token <- c(tail(token, n = -1), NA_character_)
+    drops <- which(token == "EQ_SUB" & next_token != "expr")
+
+    exprs <- sort(c(exprs, drops))
+
+    ignore_drop_through <- function(x) {
+      if (x %in% drops) {
+        return(NULL)
       }
+      x
+    }
 
-      exprs <- lapply(exprs, ignore_dots)
+    exprs <- lapply(exprs, ignore_drop_through)
 
-      c(list(NULL), lapply(exprs, make_srcref))
-    },
+    # Don't create srcrefs for ... conditions
+    ignore_dots <- function(x) {
+      if (identical("...", pd$text[pd$parent == pd_child$id[x]])) {
+        return(NULL)
+      }
+      x
+    }
 
+    exprs <- lapply(exprs, ignore_dots)
+
+    c(list(NULL), lapply(exprs, make_srcref))
+  } else {
     NULL
-  )
+  }
 }
 
 is_conditional_or_loop <- function(x) is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "else", "switch")
 
+is_conditional_loop_or_block <- function(x) {
+  is.call(x) &&
+  (identical(x[[1L]], as.name("{")) ||
+    (is.symbol(x[[1L]]) && as.character(x[[1L]]) %in% c("if", "for", "switch", "while")))
+}
+
+
 package_parse_data <- new.env()
 
 get_parse_data <- function(srcfile) {
-  if (length(package_parse_data) == 0) {
+  filename <- srcfile[["filename"]]
+  keep <- !is.null(filename) && nchar(filename) > 0
+
+  if (!keep || length(package_parse_data) == 0) {
     lines <- getSrcLines(srcfile, 1L, Inf)
     res <- lapply(split_on_line_directives(lines),
-      function(x) getParseData(parse(text = x, keep.source = TRUE), includeText = TRUE))
-    for (i in seq_along(res)) {
-      package_parse_data[[names(res)[[i]]]] <- res[[i]]
+                  function(x) getParseData(parse(text = x, keep.source = TRUE), includeText = TRUE))
+
+    if (keep) {
+      for (i in seq_along(res)) {
+        package_parse_data[[names(res)[[i]]]] <- res[[i]]
+      }
     }
   }
-  package_parse_data[[srcfile[["filename"]]]]
+  
+  if (keep) {
+    package_parse_data[[filename]]
+  } else {
+    res
+  }
 }
 
 clean_parse_data <- function() {
